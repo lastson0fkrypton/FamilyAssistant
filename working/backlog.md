@@ -74,4 +74,4 @@ Status legend:
 - [ ] Add baseline unit test setup and first tests for schema validation modules.
 - [ ] Add lint and formatting configuration with scripts.
 - [x] Add Makefile or npm scripts for common local workflows.
-- [ ] Expand README with concrete setup, run, and test instructions after scaffolding.
+- [x] Expand README with concrete setup, run, and test instructions after scaffolding.

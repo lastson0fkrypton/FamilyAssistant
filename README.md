@@ -72,7 +72,7 @@ To skip model download/warmup during setup:
 
 After setup, start the full local stack with:
 
-       ./run.sh
+       ./start.sh
 
 This will:
 1. Ensure Node is available via `fnm`.
@@ -87,8 +87,8 @@ This will:
 
 Useful runtime options:
 
-       FA_OPEN_BROWSER=0 ./run.sh
-       FA_DETACH=1 ./run.sh
+       FA_OPEN_BROWSER=0 ./start.sh
+       FA_DETACH=1 ./start.sh
 
 The API log is written to `var/api-dev.log`.
 
@@ -96,7 +96,7 @@ To stop the local runtime:
 
        ./stop.sh
 
-This stops the API started by `./run.sh` and stops the Ollama and PostgreSQL containers. To stop only the API and leave containers running:
+This stops the API started by `./start.sh` and stops the Ollama and PostgreSQL containers. To stop only the API and leave containers running:
 
        FA_STOP_DEPS=0 ./stop.sh
 
@@ -143,7 +143,7 @@ Once `./scripts/deps.sh up` has completed (or `./scripts/compose.sh up`), verify
 | PostgreSQL | `psql -h localhost -p 5433 -U familyassistant -d familyassistant -c '\l'` | Database list |
 | API health        | http://localhost:3000/healthz               | `{"status":"ok"}`                          |
 | API readiness     | http://localhost:3000/readyz               | `{"status":"ready","checks":{...}}`        |
-| UI (placeholder)  | http://localhost:5173                      | Placeholder response (once UI is running)  |
+| Web UI            | http://localhost:3000/ui/                  | FamilyAssistant chat interface             |
 
 Quick curl checks:
 
@@ -155,6 +155,13 @@ Prompt override:
        ORCHESTRATION_SYSTEM_PROMPT="Your custom planner instructions here"
 
 Set that in `.env`, then restart the API to apply it.
+
+Current prompt profile:
+
+- Friendly, family-safe assistant tone.
+- Family context for Steve, Stacey, Sienna, and Blake.
+- Calendar and schedule help first.
+- No internet claims, no device-control claims unless a tool result proves them.
 
 Ollama GPU enablement:
 
@@ -191,4 +198,6 @@ Notes:
 
 ## Current Status
 
-Project bootstrap documents created. Next step is selecting the first backlog item for implementation.
+- Deterministic backend APIs, orchestration, memory adapters, observability, and local runtime scripts are in place.
+- The web UI is live at `http://localhost:3000/ui/` with dark mode, Enter-to-send text input, and interrupt support.
+- Voice capture, STT, TTS, and push-to-talk remain pending backlog items.

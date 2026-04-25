@@ -135,12 +135,15 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - Root route redirects to `/ui`
   - Text-first chat interface calling `/orchestrate` and displaying transcript
   - Interrupt button path calls orchestration with `isInterrupt=true`
+  - Dark-mode visual treatment implemented for the text-first UI
+  - Enter submits the current message; Shift+Enter inserts a newline
+  - Initial system greeting updated to a user-facing welcome message
 - Root-level runtime entrypoint implemented:
-  - `./run.sh` prepares Node, starts dependency containers, ensures/warms the Ollama model, verifies GPU-backed execution when enabled, starts or reuses the local API, runs startup smoke tests, and opens `/ui`
+  - `./start.sh` prepares Node, starts dependency containers, ensures/warms the Ollama model, verifies GPU-backed execution when enabled, starts or reuses the local API, runs startup smoke tests, and opens `/ui`
   - Detached mode is supported with `FA_DETACH=1`
   - Browser launch can be suppressed with `FA_OPEN_BROWSER=0`
 - Root-level shutdown entrypoint implemented:
-  - `./stop.sh` stops the API started by `./run.sh` using the tracked PID file and stops backend dependency containers by default
+  - `./stop.sh` stops the API started by `./start.sh` using the tracked PID file and stops backend dependency containers by default
   - Container shutdown can be skipped with `FA_STOP_DEPS=0`
 
 ## Local Runtime and Deployment Baseline
@@ -212,5 +215,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - 2026-04-25: Added local metrics endpoints with JSON and Prometheus output formats.
 - 2026-04-25: Added local-network web UI scaffold served from API boundary at `/ui`.
 - 2026-04-25: Added configurable orchestration system prompt and optional Podman CDI GPU passthrough for the Ollama container.
-- 2026-04-25: Added `run.sh` as the primary local runtime entrypoint with dependency startup, model warmup, GPU verification, API smoke tests, and browser launch.
+- 2026-04-25: Added a family-specific orchestration prompt profile for Steve, Stacey, Sienna, and Blake while preserving deterministic capability guardrails.
+- 2026-04-25: Added `start.sh` as the primary local runtime entrypoint with dependency startup, model warmup, GPU verification, API smoke tests, and browser launch.
 - 2026-04-25: Added `stop.sh` as the matching local shutdown entrypoint for the API and dependency containers.
+- 2026-04-25: Refined the text-first web UI with dark mode, Enter-to-send, and a more natural welcome message.

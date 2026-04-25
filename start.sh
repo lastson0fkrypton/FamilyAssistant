@@ -200,7 +200,7 @@ if [[ -n "${EXISTING_PID}" ]] && is_pid_running "${EXISTING_PID}" && is_api_heal
 elif is_api_healthy "${API_PORT}"; then
   echo "Reusing already-running API on port ${API_PORT}."
 elif check_port_in_use "${API_PORT}"; then
-  fail "Port ${API_PORT} is already in use by a non-responsive process. Stop it and rerun ./run.sh."
+  fail "Port ${API_PORT} is already in use by a non-responsive process. Stop it and rerun ./start.sh."
 else
   : > "${API_LOG_FILE}"
   npm --prefix "${API_DIR}" run dev >>"${API_LOG_FILE}" 2>&1 &
