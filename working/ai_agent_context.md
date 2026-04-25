@@ -56,8 +56,8 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 
 - API server (Node.js)
   - Health/readiness endpoints
-  - Event service
-  - Schedule service
+  - Event CRUD service
+  - Schedule CRUD service
   - User service
 
 - LLM adapter
@@ -75,6 +75,22 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - Observability
   - Structured logs with correlation IDs
   - Audit trail for state-changing actions
+
+## Implemented Backend Baseline
+
+- API endpoints implemented:
+  - `GET /healthz`
+  - `GET /readyz` (checks PostgreSQL and Ollama)
+  - `GET/POST/PATCH/DELETE /events`
+  - `GET/POST/PATCH/DELETE /schedules`
+- Database migration runner implemented in API startup path using deterministic, append-only migration list.
+- Initial SQL tables implemented:
+  - `users`
+  - `events`
+  - `schedules`
+  - `audit_log`
+  - `schema_migrations`
+- Audit logging module implemented for state-changing operations (create/update/delete).
 
 ## Local Runtime and Deployment Baseline
 
@@ -131,3 +147,5 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - 2026-04-25: Initial architecture context created during project bootstrap.
 - 2026-04-25: Added container runtime baseline (Podman-first, Docker fallback) with one shared compose topology.
 - 2026-04-25: Added interruption-first orchestration requirement with cancellation/replan behavior.
+- 2026-04-25: Implemented deterministic CRUD APIs for events and schedules with schema validation.
+- 2026-04-25: Added migration runner and audit log persistence for state-changing actions.

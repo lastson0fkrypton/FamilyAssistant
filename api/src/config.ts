@@ -1,8 +1,10 @@
 import { z } from 'zod';
 import { config as dotenvConfig } from 'dotenv';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 // Load .env from repo root (two levels up from api/src/).
+const __dirname = dirname(fileURLToPath(import.meta.url));
 dotenvConfig({ path: resolve(__dirname, '../../.env') });
 
 const EnvSchema = z.object({

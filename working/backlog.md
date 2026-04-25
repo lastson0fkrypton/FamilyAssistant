@@ -42,10 +42,10 @@ Status legend:
 
 ## Deterministic Core APIs
 
-- [ ] Implement health and readiness endpoints with dependency checks.
-- [ ] Design and implement event CRUD API with schema validation and deterministic behavior.
-- [ ] Design and implement schedule CRUD API with schema validation and deterministic behavior.
-- [ ] Add audit logging module for all state-changing operations.
+- [x] Implement health and readiness endpoints with dependency checks.
+- [x] Design and implement event CRUD API with schema validation and deterministic behavior.
+- [x] Design and implement schedule CRUD API with schema validation and deterministic behavior.
+- [x] Add audit logging module for all state-changing operations.
 
 ## Memory Layer
 
