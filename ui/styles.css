@@ -1,0 +1,217 @@
+:root {
+  --bg-0: #0a1117;
+  --bg-1: #13212b;
+  --bg-2: #1d3341;
+  --ink: #edf6f8;
+  --ink-soft: #9ab0b8;
+  --accent: #1ac2a1;
+  --accent-2: #ff8b5e;
+  --panel: rgba(10, 17, 23, 0.86);
+  --panel-strong: rgba(16, 27, 35, 0.96);
+  --border: rgba(237, 246, 248, 0.12);
+  --shadow: rgba(0, 0, 0, 0.42);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: 'Space Grotesk', sans-serif;
+  color: var(--ink);
+  background:
+    radial-gradient(900px 540px at -10% -20%, rgba(255, 139, 94, 0.18), transparent 60%),
+    radial-gradient(880px 460px at 100% 0%, rgba(26, 194, 161, 0.14), transparent 55%),
+    radial-gradient(1200px 700px at 50% 120%, var(--bg-2), transparent 60%),
+    linear-gradient(140deg, var(--bg-0), #060b10 56%, #0e1820);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+}
+
+.shell {
+  width: min(920px, 100%);
+  height: min(90vh, 900px);
+  background: linear-gradient(180deg, rgba(18, 30, 39, 0.96), var(--panel));
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  box-shadow: 0 28px 80px var(--shadow);
+  backdrop-filter: blur(12px);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  overflow: hidden;
+}
+
+.shell-header {
+  padding: 1.1rem 1.2rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02), transparent);
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  letter-spacing: 0.02em;
+}
+
+.subtitle {
+  margin: 0.2rem 0 0.7rem;
+  color: var(--ink-soft);
+  font-size: 0.92rem;
+}
+
+.meta-row {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+}
+
+.pill.status {
+  color: #041411;
+  background: var(--accent);
+  border-color: transparent;
+}
+
+.transcript {
+  padding: 1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.msg {
+  max-width: 82%;
+  border-radius: 14px;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid var(--border);
+  line-height: 1.35;
+  animation: reveal 180ms ease-out;
+}
+
+.msg.user {
+  align-self: flex-end;
+  background: linear-gradient(180deg, rgba(36, 54, 66, 0.94), rgba(25, 38, 47, 0.94));
+}
+
+.msg.assistant {
+  align-self: flex-start;
+  background: linear-gradient(180deg, rgba(13, 62, 61, 0.92), rgba(10, 48, 50, 0.92));
+}
+
+.msg.system {
+  align-self: center;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.composer {
+  border-top: 1px solid var(--border);
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.composer-hint {
+  margin: -0.2rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.82rem;
+}
+
+textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.7rem 0.8rem;
+  font: inherit;
+  color: var(--ink);
+  background: var(--panel-strong);
+  min-height: 3.5rem;
+}
+
+textarea::placeholder {
+  color: var(--ink-soft);
+}
+
+textarea:focus {
+  outline: 2px solid rgba(26, 194, 161, 0.32);
+  outline-offset: 2px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.55rem;
+}
+
+button {
+  border: none;
+  border-radius: 10px;
+  padding: 0.58rem 0.95rem;
+  font: inherit;
+  cursor: pointer;
+}
+
+button.primary {
+  background: var(--accent);
+  color: #041411;
+}
+
+button.secondary {
+  background: rgba(255, 139, 94, 0.12);
+  color: var(--accent-2);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
+@keyframes reveal {
+  from {
+    transform: translateY(8px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 740px) {
+  .shell {
+    height: 95vh;
+    border-radius: 14px;
+  }
+
+  .msg {
+    max-width: 92%;
+  }
+}

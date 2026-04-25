@@ -18,16 +18,31 @@ interface OllamaGenerateRequest {
 interface OllamaGenerateResponse {
   response?: string;
   done?: boolean;
+  total_duration?: number;
+  load_duration?: number;
+  prompt_eval_count?: number;
+  prompt_eval_duration?: number;
+  eval_count?: number;
+  eval_duration?: number;
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+function nanosToMs(value?: number): number | undefined {
+  if (typeof value !== 'number') {
+    return undefined;
+  }
+
+  return Math.round(value / 1_000_000);
+}
+
 export class OllamaClient {
   private readonly baseUrl: string;
   private readonly model: string;
   private readonly timeoutMs: number;
+  private readonly generateTimeoutMs: number;
   private readonly maxRetries: number;
   private readonly retryDelayMs: number;
 
@@ -35,6 +50,7 @@ export class OllamaClient {
     this.baseUrl = config.OLLAMA_BASE_URL;
     this.model = config.OLLAMA_MODEL;
     this.timeoutMs = config.OLLAMA_TIMEOUT_MS;
+    this.generateTimeoutMs = config.OLLAMA_GENERATE_TIMEOUT_MS;
     this.maxRetries = config.OLLAMA_MAX_RETRIES;
     this.retryDelayMs = config.OLLAMA_RETRY_DELAY_MS;
   }
@@ -86,11 +102,33 @@ export class OllamaClient {
 
   async generate(prompt: string): Promise<OllamaGenerateResponse> {
     await this.ensureSelectedModelAvailable();
-    return this.requestWithBody<OllamaGenerateResponse, OllamaGenerateRequest>('/api/generate', {
+    const response = await this.requestWithBody<OllamaGenerateResponse, OllamaGenerateRequest>('/api/generate', {
       model: this.model,
       prompt,
       stream: false,
-    });
+    }, this.generateTimeoutMs);
+
+    const outputTokens = response.eval_count ?? 0;
+    const outputDurationMs = nanosToMs(response.eval_duration);
+    const tokensPerSecond = outputTokens > 0 && outputDurationMs && outputDurationMs > 0
+      ? Number(((outputTokens * 1000) / outputDurationMs).toFixed(2))
+      : undefined;
+
+    logger.info(
+      {
+        model: this.model,
+        totalDurationMs: nanosToMs(response.total_duration),
+        loadDurationMs: nanosToMs(response.load_duration),
+        promptEvalCount: response.prompt_eval_count,
+        promptEvalDurationMs: nanosToMs(response.prompt_eval_duration),
+        evalCount: response.eval_count,
+        evalDurationMs: outputDurationMs,
+        tokensPerSecond,
+      },
+      'Ollama generation completed',
+    );
+
+    return response;
   }
 
   private async request<T>(path: string): Promise<T> {
@@ -122,7 +160,7 @@ export class OllamaClient {
     throw new Error(`Ollama request failed after ${this.maxRetries + 1} attempts: ${String(lastErr)}`);
   }
 
-  private async requestWithBody<T, TBody>(path: string, body: TBody): Promise<T> {
+  private async requestWithBody<T, TBody>(path: string, body: TBody, timeoutMs = this.timeoutMs): Promise<T> {
     let attempt = 0;
     let lastErr: unknown;
 
@@ -132,7 +170,7 @@ export class OllamaClient {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
           body: JSON.stringify(body),
-          signal: AbortSignal.timeout(this.timeoutMs),
+          signal: AbortSignal.timeout(timeoutMs),
         });
         if (!res.ok) {
           throw new Error(`HTTP ${res.status} from ${path}`);

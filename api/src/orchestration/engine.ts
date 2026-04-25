@@ -5,6 +5,7 @@ import {
   type OrchestrationResponse,
 } from '@familyassistant/schemas';
 import { v4 as uuidv4 } from 'uuid';
+import { config } from '../config.js';
 import { getOllamaClient } from '../ollama-client.js';
 import { executeToolCall } from '../tools/registry.js';
 import { logger } from '../logger.js';
@@ -50,12 +51,14 @@ function buildPrompt(input: OrchestrationRequest, scratchpad: string): string {
     : 'No interruption flag for this turn.';
 
   return [
-    'You are the orchestration planner for a deterministic home assistant.',
+    config.ORCHESTRATION_SYSTEM_PROMPT,
     'Return EXACTLY one JSON object and nothing else.',
     'Choose either:',
     '1) {"kind":"response","reply":"...","done":true|false}',
     '2) {"kind":"tool_call","tool":"<allowlisted name>","args":{...}}',
     'Use tool_call only when a deterministic backend action is needed.',
+    'Never claim device control, live integrations, news, weather, cameras, thermostats, or automation unless a tool result in this turn confirms it.',
+    'If the user greets you or asks a general question, answer naturally and briefly instead of inventing platform capabilities.',
     interruptLine,
     '',
     'Conversation history:',

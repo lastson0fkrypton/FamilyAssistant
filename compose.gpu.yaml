@@ -1,0 +1,9 @@
+services:
+  ollama:
+    environment:
+      NVIDIA_VISIBLE_DEVICES: all
+      NVIDIA_DRIVER_CAPABILITIES: compute,utility
+    devices:
+      - ${OLLAMA_GPU_DEVICE}
+    security_opt:
+      - label=disable

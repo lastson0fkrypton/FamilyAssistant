@@ -26,10 +26,12 @@ Status legend:
 - [x] Add healthchecks for ollama and postgres, then gate api startup on dependency readiness.
 - [x] Define image and service naming conventions (for example familyassistant-api, familyassistant-ui, familyassistant-ollama, familyassistant-postgres).
 - [x] Add developer documentation for runtime differences between Podman and Docker and how fallback behavior works.
+- [x] Add optional NVIDIA GPU passthrough configuration for the Ollama container under Podman CDI.
 
 ## Frontend Voice Interaction (Web UI)
 
-- [ ] Scaffold a local-network web interface for voice interaction, served from the same Node.js pod/service boundary as the API.
+- [x] Scaffold a local-network web interface for voice interaction, served from the same Node.js pod/service boundary as the API.
+- [x] Polish text-input UX for the web interface while voice features remain pending.
 - [ ] Implement configurable push-to-talk keypress handling in the web interface to start listening.
 - [ ] Implement listening-start notification sound playback (ding) on microphone capture start.
 - [ ] Implement browser microphone capture with voice activity/silence detection and hard timeout fallback.
@@ -49,10 +51,10 @@ Status legend:
 
 ## Memory Layer
 
-- [ ] Implement structured memory adapter interface (SQLite-first, PostgreSQL-compatible).
-- [ ] Create initial structured data model migrations for users, events, and schedules.
-- [ ] Implement semantic memory adapter interface for Qdrant/Chroma compatibility.
-- [ ] Define semantic memory ingestion contract for conversation summaries and preferences.
+- [x] Implement structured memory adapter interface (SQLite-first, PostgreSQL-compatible).
+- [x] Create initial structured data model migrations for users, events, and schedules.
+- [x] Implement semantic memory adapter interface for Qdrant/Chroma compatibility.
+- [x] Define semantic memory ingestion contract for conversation summaries and preferences.
 
 ## AI Orchestration
 
@@ -63,13 +65,13 @@ Status legend:
 
 ## Observability and Debuggability
 
-- [ ] Add structured logging format and request correlation IDs.
-- [ ] Add deterministic replay format for critical assistant actions.
-- [ ] Implement basic metrics endpoint for local monitoring.
+- [x] Add structured logging format and request correlation IDs.
+- [x] Add deterministic replay format for critical assistant actions.
+- [x] Implement basic metrics endpoint for local monitoring.
 
 ## Quality and Developer Experience
 
 - [ ] Add baseline unit test setup and first tests for schema validation modules.
 - [ ] Add lint and formatting configuration with scripts.
-- [ ] Add Makefile or npm scripts for common local workflows.
+- [x] Add Makefile or npm scripts for common local workflows.
 - [ ] Expand README with concrete setup, run, and test instructions after scaffolding.

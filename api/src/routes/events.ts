@@ -1,5 +1,4 @@
 import { Router, type Request, type Response } from 'express';
-import { v4 as uuidv4 } from 'uuid';
 import {
   CreateEventSchema,
   UpdateEventSchema,
@@ -8,12 +7,6 @@ import {
 import * as EventsService from '../services/events.js';
 
 export const eventsRouter = Router();
-
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function correlationId(req: Request): string {
-  return (req.headers['x-correlation-id'] as string | undefined) ?? uuidv4();
-}
 
 function notFound(res: Response): void {
   res.status(404).json({ ok: false, error: { code: 'NOT_FOUND', message: 'Event not found' } });
@@ -47,7 +40,7 @@ eventsRouter.post('/', async (req: Request, res: Response) => {
     res.status(400).json({ ok: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid event data', details: parsed.error.flatten() } });
     return;
   }
-  const event = await EventsService.createEvent(parsed.data, correlationId(req));
+  const event = await EventsService.createEvent(parsed.data, req.correlationId);
   res.status(201).json({ ok: true, data: event });
 });
 
@@ -59,7 +52,7 @@ eventsRouter.patch('/:id', async (req: Request, res: Response) => {
     res.status(400).json({ ok: false, error: { code: 'VALIDATION_ERROR', message: 'Invalid update data', details: parsed.error.flatten() } });
     return;
   }
-  const event = await EventsService.updateEvent(String(req.params['id']), parsed.data, correlationId(req));
+  const event = await EventsService.updateEvent(String(req.params['id']), parsed.data, req.correlationId);
   if (!event) { notFound(res); return; }
   res.json({ ok: true, data: event });
 });
@@ -67,7 +60,7 @@ eventsRouter.patch('/:id', async (req: Request, res: Response) => {
 // ── DELETE /events/:id ───────────────────────────────────────────────────────
 
 eventsRouter.delete('/:id', async (req: Request, res: Response) => {
-  const deleted = await EventsService.deleteEvent(String(req.params['id']), correlationId(req));
+  const deleted = await EventsService.deleteEvent(String(req.params['id']), req.correlationId);
   if (!deleted) { notFound(res); return; }
   res.status(204).send();
 });

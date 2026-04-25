@@ -10,7 +10,14 @@ toolsRouter.get('/', (_req: Request, res: Response) => {
 
 // Deterministic tool execution entrypoint for LLM tool-calling.
 toolsRouter.post('/execute', async (req: Request, res: Response) => {
-  const result = await executeToolCall(req.body);
+  const raw = (typeof req.body === 'object' && req.body !== null)
+    ? req.body as Record<string, unknown>
+    : {};
+
+  const result = await executeToolCall({
+    ...raw,
+    correlationId: raw['correlationId'] ?? req.correlationId,
+  });
 
   if (!result.ok && result.error.code === 'INVALID_TOOL_REQUEST') {
     res.status(400).json(result);

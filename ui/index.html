@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>FamilyAssistant Console</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <header class="shell-header">
+        <h1>FamilyAssistant</h1>
+        <p class="subtitle">Local orchestration console</p>
+        <div class="meta-row">
+          <span id="sessionId" class="pill"></span>
+          <span id="status" class="pill status">idle</span>
+        </div>
+      </header>
+
+      <section id="transcript" class="transcript" aria-live="polite"></section>
+
+      <form id="chatForm" class="composer">
+        <label for="prompt" class="sr-only">Prompt</label>
+        <textarea id="prompt" rows="2" placeholder="Type a message for the Family Assistant..." required></textarea>
+        <p class="composer-hint">Press Enter to send. Press Shift+Enter for a new line.</p>
+        <div class="actions">
+          <button type="button" id="interruptBtn" class="secondary">Interrupt</button>
+          <button type="submit" id="sendBtn" class="primary">Send</button>
+        </div>
+      </form>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

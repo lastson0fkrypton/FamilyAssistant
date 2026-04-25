@@ -72,6 +72,7 @@ fi
 
 COMPOSE_CMD="$(resolve_compose_cmd)"
 COMPOSE_FILE="${ROOT_DIR}/compose.yaml"
+COMPOSE_GPU_FILE="${ROOT_DIR}/compose.gpu.yaml"
 ENV_FILE="${ROOT_DIR}/.env"
 
 SUBCOMMAND="$1"
@@ -82,9 +83,22 @@ if [[ ! -f "${ENV_FILE}" ]]; then
   exit 1
 fi
 
+COMPOSE_FILES=(-f "${COMPOSE_FILE}")
+
+GPU_ENABLED="$(grep -E '^OLLAMA_GPU_ENABLED=' "${ENV_FILE}" | tail -n1 | cut -d= -f2- | tr -d '[:space:]')"
+
+if [[ "${GPU_ENABLED:-false}" == "true" ]]; then
+  if [[ ! -f "${COMPOSE_GPU_FILE}" ]]; then
+    echo "GPU overlay file not found: ${COMPOSE_GPU_FILE}" >&2
+    exit 1
+  fi
+
+  COMPOSE_FILES+=( -f "${COMPOSE_GPU_FILE}" )
+fi
+
 run_compose() {
   # shellcheck disable=SC2086
-  ${COMPOSE_CMD} --env-file "${ENV_FILE}" -f "${COMPOSE_FILE}" "$@"
+  ${COMPOSE_CMD} --env-file "${ENV_FILE}" ${COMPOSE_FILES[@]} "$@"
 }
 
 case "${SUBCOMMAND}" in

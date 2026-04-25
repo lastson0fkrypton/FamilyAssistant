@@ -95,6 +95,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - Config-driven timeout (`OLLAMA_TIMEOUT_MS`)
   - Config-driven retry policy (`OLLAMA_MAX_RETRIES`, `OLLAMA_RETRY_DELAY_MS`)
   - Selected local model configuration (`OLLAMA_MODEL`)
+  - Configurable planner/system prompt override (`ORCHESTRATION_SYSTEM_PROMPT`)
   - Health checks that validate service reachability and report missing selected model as warning.
 - Tool registry implemented with deterministic allowlist and per-tool Zod argument validation.
 - Tool execution API implemented:
@@ -108,11 +109,45 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - Bounded step loop to avoid unbounded autonomous execution.
   - Tool request/arg validation and explicit failure envelopes.
   - Unknown/non-allowlisted tool rejection.
+- Structured memory adapters implemented:
+  - Common `StructuredMemoryAdapter` interface
+  - PostgreSQL implementation for users/events/schedules operations
+  - SQLite compatibility stub and backend selector
+- Semantic memory adapters implemented:
+  - Common `SemanticMemoryAdapter` interface
+  - Qdrant and Chroma compatibility stubs
+  - In-memory semantic adapter for local development/testing
+- Semantic ingestion contract defined for conversation summaries and extracted preferences.
+- Structured request observability implemented:
+  - Global correlation ID middleware (`x-correlation-id`) with response echo
+  - pino-http request logging bound to correlation ID
+  - Route-level state-changing operations consume the centralized request correlation ID
+- Deterministic replay implemented:
+  - Append-only NDJSON replay log (`REPLAY_LOG_PATH`)
+  - Replay records for critical assistant actions (tool execution, orchestration, cancel)
+  - Config-controlled replay enable/disable (`REPLAY_LOG_ENABLED`)
+- Basic metrics implemented:
+  - `GET /metrics` (JSON snapshot for local dashboards)
+  - `GET /metrics/prometheus` (Prometheus-compatible text export)
+  - Request counters, error counters, per-route latency aggregates, process uptime/memory
+- Web UI scaffold implemented:
+  - Static frontend served by API at `/ui` (same service boundary)
+  - Root route redirects to `/ui`
+  - Text-first chat interface calling `/orchestrate` and displaying transcript
+  - Interrupt button path calls orchestration with `isInterrupt=true`
+- Root-level runtime entrypoint implemented:
+  - `./run.sh` prepares Node, starts dependency containers, ensures/warms the Ollama model, verifies GPU-backed execution when enabled, starts or reuses the local API, runs startup smoke tests, and opens `/ui`
+  - Detached mode is supported with `FA_DETACH=1`
+  - Browser launch can be suppressed with `FA_OPEN_BROWSER=0`
+- Root-level shutdown entrypoint implemented:
+  - `./stop.sh` stops the API started by `./run.sh` using the tracked PID file and stops backend dependency containers by default
+  - Container shutdown can be skipped with `FA_STOP_DEPS=0`
 
 ## Local Runtime and Deployment Baseline
 
 - Compose topology is shared across Podman and Docker.
 - Runtime selection is Podman-first with Docker fallback.
+- Optional Ollama GPU passthrough overlay is enabled via `.env` (`OLLAMA_GPU_ENABLED=true`) and uses Podman CDI device injection (`OLLAMA_GPU_DEVICE=nvidia.com/gpu=all`) on NVIDIA hosts.
 - Services in compose baseline:
   - api
   - ui
@@ -170,3 +205,12 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - 2026-04-25: Implemented deterministic tool registry and execution endpoint with strict request/arg validation.
 - 2026-04-25: Implemented interruption-aware orchestration endpoint with explicit planner envelopes and cancellation path.
 - 2026-04-25: Added tool guardrails for allowlist enforcement and deterministic error envelopes.
+- 2026-04-25: Implemented structured memory adapter abstraction with PostgreSQL implementation and SQLite compatibility stub.
+- 2026-04-25: Implemented semantic memory adapter abstraction (Qdrant/Chroma stubs + in-memory fallback) and ingestion contract schemas.
+- 2026-04-25: Added structured request logging and centralized correlation ID propagation across API routes.
+- 2026-04-25: Added deterministic replay NDJSON logging for critical assistant actions.
+- 2026-04-25: Added local metrics endpoints with JSON and Prometheus output formats.
+- 2026-04-25: Added local-network web UI scaffold served from API boundary at `/ui`.
+- 2026-04-25: Added configurable orchestration system prompt and optional Podman CDI GPU passthrough for the Ollama container.
+- 2026-04-25: Added `run.sh` as the primary local runtime entrypoint with dependency startup, model warmup, GPU verification, API smoke tests, and browser launch.
+- 2026-04-25: Added `stop.sh` as the matching local shutdown entrypoint for the API and dependency containers.

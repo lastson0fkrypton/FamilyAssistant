@@ -4,13 +4,22 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 ENV_FILE="${ROOT_DIR}/.env"
 
-if [[ -f "${ENV_FILE}" ]]; then
-  # shellcheck disable=SC1090
-  source "${ENV_FILE}"
-fi
+read_env_value() {
+  local key="$1"
 
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    return 1
+  fi
+
+  grep -E "^${key}=" "${ENV_FILE}" | tail -n1 | cut -d= -f2-
+}
+
+OLLAMA_BASE_URL="$(read_env_value OLLAMA_BASE_URL || true)"
 OLLAMA_BASE_URL="${OLLAMA_BASE_URL:-http://127.0.0.1:11434}"
-DEFAULT_MODEL="${OLLAMA_MODEL:-llama3:8b}"
+DEFAULT_MODEL="$(read_env_value OLLAMA_MODEL || true)"
+DEFAULT_MODEL="${DEFAULT_MODEL:-llama3:8b}"
+WARM_TIMEOUT_S="$(read_env_value OLLAMA_WARM_TIMEOUT_S || true)"
+WARM_TIMEOUT_S="${WARM_TIMEOUT_S:-120}"
 OLLAMA_CONTAINER_NAME="familyassistant-ollama"
 
 usage() {
@@ -73,9 +82,9 @@ pull_model() {
 warm_model() {
   local model="$1"
   echo "Warming model: ${model}"
-  curl -fsS "${OLLAMA_BASE_URL}/api/generate" \
+  curl -fsS --max-time "${WARM_TIMEOUT_S}" "${OLLAMA_BASE_URL}/api/generate" \
     -H 'content-type: application/json' \
-    -d "{\"model\":\"${model}\",\"prompt\":\"hello\",\"stream\":false,\"keep_alive\":\"5m\"}" >/dev/null
+    -d "{\"model\":\"${model}\",\"prompt\":\"hello\",\"stream\":false,\"keep_alive\":\"5m\",\"options\":{\"num_predict\":1}}" >/dev/null
 }
 
 if [[ $# -lt 1 ]]; then

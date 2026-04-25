@@ -1,5 +1,7 @@
 import express from 'express';
 import { pinoHttp } from 'pino-http';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { pool } from './db.js';
@@ -9,11 +11,27 @@ import { eventsRouter } from './routes/events.js';
 import { schedulesRouter } from './routes/schedules.js';
 import { toolsRouter } from './routes/tools.js';
 import { orchestrationRouter } from './routes/orchestration.js';
+import { correlationIdMiddleware } from './middleware/correlation-id.js';
+import { metricsMiddleware } from './observability/metrics.js';
 
 const app = express();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const uiDir = resolve(__dirname, '../../ui');
 
-app.use(pinoHttp({ logger }));
+app.use(correlationIdMiddleware);
+app.use(pinoHttp({
+  logger,
+  genReqId: (req) => req.correlationId,
+  customProps: (req) => ({ correlationId: req.correlationId }),
+}));
+app.use(metricsMiddleware);
 app.use(express.json());
+
+// Serve local-network web UI from same API boundary.
+app.use('/ui', express.static(uiDir));
+app.get('/', (_req, res) => {
+  res.redirect('/ui');
+});
 
 // Routes
 app.use('/', healthRouter);

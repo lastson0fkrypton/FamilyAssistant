@@ -13,6 +13,7 @@ import {
 } from '@familyassistant/schemas';
 import * as EventsService from '../services/events.js';
 import * as SchedulesService from '../services/schedules.js';
+import { writeReplayEvent } from '../observability/replay.js';
 
 interface ToolContext {
   correlationId: string;
@@ -148,7 +149,7 @@ export async function executeToolCall(rawRequest: unknown): Promise<ToolCallResu
 
   const parsedRequest = ToolCallRequestSchema.safeParse(rawRequest);
   if (!parsedRequest.success) {
-    return {
+    const result: ToolCallError = {
       ok: false,
       correlationId: '00000000-0000-0000-0000-000000000000',
       tool: 'unknown',
@@ -158,27 +159,76 @@ export async function executeToolCall(rawRequest: unknown): Promise<ToolCallResu
       },
       durationMs: Date.now() - startedAt,
     };
+    await writeReplayEvent({
+      correlationId: result.correlationId,
+      category: 'tool',
+      action: 'execute',
+      status: 'error',
+      request: rawRequest,
+      response: result,
+      error: result.error.message,
+    });
+    return result;
   }
 
   const request = parsedRequest.data;
   const tool = TOOLS_BY_NAME.get(request.tool);
   if (!tool) {
-    return errorResult(request, 'TOOL_NOT_FOUND', `Unknown tool: ${request.tool}`, startedAt);
+    const result = errorResult(request, 'TOOL_NOT_FOUND', `Unknown tool: ${request.tool}`, startedAt);
+    await writeReplayEvent({
+      correlationId: request.correlationId,
+      category: 'tool',
+      action: request.tool,
+      status: 'error',
+      request,
+      response: result,
+      error: result.error.message,
+    });
+    return result;
   }
 
   try {
     const args = tool.inputSchema.parse(request.args);
     const result = await tool.execute(args, { correlationId: request.correlationId });
-    return successResult(request, result, startedAt);
+    const success = successResult(request, result, startedAt);
+    await writeReplayEvent({
+      correlationId: request.correlationId,
+      category: 'tool',
+      action: request.tool,
+      status: 'ok',
+      request,
+      response: success,
+    });
+    return success;
   } catch (err) {
     if (err instanceof ZodError) {
-      return errorResult(
+      const result = errorResult(
         request,
         'INVALID_TOOL_ARGS',
         err.flatten().formErrors.join('; ') || 'Invalid tool arguments',
         startedAt,
       );
+      await writeReplayEvent({
+        correlationId: request.correlationId,
+        category: 'tool',
+        action: request.tool,
+        status: 'error',
+        request,
+        response: result,
+        error: result.error.message,
+      });
+      return result;
     }
-    return errorResult(request, 'TOOL_EXECUTION_FAILED', String(err), startedAt);
+    const result = errorResult(request, 'TOOL_EXECUTION_FAILED', String(err), startedAt);
+    await writeReplayEvent({
+      correlationId: request.correlationId,
+      category: 'tool',
+      action: request.tool,
+      status: 'error',
+      request,
+      response: result,
+      error: result.error.message,
+    });
+    return result;
   }
 }

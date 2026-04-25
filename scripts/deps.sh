@@ -37,6 +37,16 @@ ensure_env() {
   fi
 }
 
+read_env_value() {
+  local key="$1"
+
+  if [[ ! -f "${ENV_FILE}" ]]; then
+    return 1
+  fi
+
+  grep -E "^${key}=" "${ENV_FILE}" | tail -n1 | cut -d= -f2-
+}
+
 wait_for_port() {
   local host="$1"
   local port="$2"
@@ -122,8 +132,10 @@ case "${COMMAND}" in
     ;;
   wait)
     ensure_env
-    # shellcheck disable=SC1090
-    source "${ENV_FILE}"
+    POSTGRES_PORT="$(read_env_value POSTGRES_PORT || true)"
+    POSTGRES_PORT="${POSTGRES_PORT:-5432}"
+    OLLAMA_PORT="$(read_env_value OLLAMA_PORT || true)"
+    OLLAMA_PORT="${OLLAMA_PORT:-11434}"
     wait_for_port "127.0.0.1" "${POSTGRES_PORT}" "PostgreSQL" 120
     wait_for_ollama "${OLLAMA_PORT}" 180
     ;;
