@@ -1,0 +1,102 @@
+name: familyassistant
+
+services:
+  postgres:
+    image: docker.io/postgres:16-alpine
+    container_name: familyassistant-postgres
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    networks:
+      - familyassistant_net
+
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    container_name: familyassistant-ollama
+    ports:
+      - "${OLLAMA_PORT}:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test:
+        - CMD
+        - ollama
+        - list
+      interval: 20s
+      timeout: 10s
+      retries: 6
+      start_period: 25s
+    networks:
+      - familyassistant_net
+
+  api:
+    image: docker.io/node:20-alpine
+    container_name: familyassistant-api
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        echo "API scaffold placeholder. Mount project and replace command during API implementation." && sleep infinity
+    environment:
+      NODE_ENV: development
+      PORT: ${API_PORT}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "${API_PORT}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./:/app
+    networks:
+      - familyassistant_net
+
+  ui:
+    image: docker.io/node:20-alpine
+    container_name: familyassistant-ui
+    working_dir: /app
+    command:
+      - sh
+      - -c
+      - |
+        echo "UI scaffold placeholder. Mount project and replace command during UI implementation." && sleep infinity
+    environment:
+      NODE_ENV: development
+      UI_PORT: ${UI_PORT}
+      API_BASE_URL: http://api:3000
+    ports:
+      - "${UI_PORT}:5173"
+    depends_on:
+      api:
+        condition: service_started
+    volumes:
+      - ./:/app
+    networks:
+      - familyassistant_net
+
+networks:
+  familyassistant_net:
+    name: familyassistant-net
+
+volumes:
+  postgres_data:
+    name: familyassistant-postgres-data
+  ollama_data:
+    name: familyassistant-ollama-data
