@@ -13,6 +13,9 @@ const EnvSchema = z.object({
   DATABASE_URL: z.string().url(),
   OLLAMA_BASE_URL: z.string().url().default('http://localhost:11434'),
   OLLAMA_MODEL: z.string().default('llama3:8b-instruct-q4_K_M'),
+  OLLAMA_TIMEOUT_MS: z.coerce.number().int().min(100).max(120000).default(8000),
+  OLLAMA_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
+  OLLAMA_RETRY_DELAY_MS: z.coerce.number().int().min(0).max(10000).default(500),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),
 });
 

@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 COMPOSE_SCRIPT="${ROOT_DIR}/scripts/compose.sh"
+MODEL_SCRIPT="${ROOT_DIR}/scripts/ollama-model.sh"
 ENV_FILE="${ROOT_DIR}/.env"
 
 usage() {
@@ -13,6 +14,8 @@ Commands:
   init-env    Create .env from .env.example if missing
   configure   Update dependency env vars (passes args to configure-deps.sh)
   up          Start Ollama and PostgreSQL containers
+  model       Ensure configured Ollama model is pulled locally
+  warm        Warm configured Ollama model (pulls first if missing)
   down        Stop Ollama and PostgreSQL containers
   restart     Restart Ollama and PostgreSQL containers
   status      Show status of Ollama and PostgreSQL containers
@@ -23,6 +26,7 @@ Examples:
   ./scripts/deps.sh init-env
   ./scripts/deps.sh configure --postgres-port 5433 --ollama-port 11435
   ./scripts/deps.sh up
+  ./scripts/deps.sh model
   ./scripts/deps.sh wait
 EOF
 }
@@ -91,6 +95,14 @@ case "${COMMAND}" in
     ensure_env
     "${COMPOSE_SCRIPT}" up postgres ollama
     ;;
+  model)
+    ensure_env
+    "${MODEL_SCRIPT}" ensure "$@"
+    ;;
+  warm)
+    ensure_env
+    "${MODEL_SCRIPT}" warm "$@"
+    ;;
   down)
     ensure_env
     "${COMPOSE_SCRIPT}" stop postgres ollama
@@ -102,7 +114,7 @@ case "${COMMAND}" in
     ;;
   status)
     ensure_env
-    "${COMPOSE_SCRIPT}" ps postgres ollama
+    "${COMPOSE_SCRIPT}" ps
     ;;
   logs)
     ensure_env

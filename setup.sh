@@ -32,6 +32,14 @@ if [[ "${SKIP_DEPS:-}" != "1" ]]; then
 
   header "Waiting for dependencies to be reachable..."
   bash "${ROOT_DIR}/scripts/deps.sh" wait
+
+  if [[ "${SKIP_MODEL_PULL:-}" != "1" ]]; then
+    header "Ensuring configured Ollama model is available..."
+    bash "${ROOT_DIR}/scripts/deps.sh" model
+
+    header "Warming Ollama model for first use..."
+    bash "${ROOT_DIR}/scripts/deps.sh" warm
+  fi
 fi
 
 # ── 4. Install API dependencies ───────────────────────────────────────────────

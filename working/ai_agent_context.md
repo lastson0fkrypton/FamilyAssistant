@@ -61,7 +61,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - User service
 
 - LLM adapter
-  - Ollama client
+  - Ollama client wrapper with timeout/retry policy
   - Model configuration and timeout controls
 
 - Tool execution framework
@@ -91,6 +91,23 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - `audit_log`
   - `schema_migrations`
 - Audit logging module implemented for state-changing operations (create/update/delete).
+- Ollama client wrapper implemented with:
+  - Config-driven timeout (`OLLAMA_TIMEOUT_MS`)
+  - Config-driven retry policy (`OLLAMA_MAX_RETRIES`, `OLLAMA_RETRY_DELAY_MS`)
+  - Selected local model configuration (`OLLAMA_MODEL`)
+  - Health checks that validate service reachability and report missing selected model as warning.
+- Tool registry implemented with deterministic allowlist and per-tool Zod argument validation.
+- Tool execution API implemented:
+  - `GET /tools` returns registered tool names and descriptions.
+  - `POST /tools/execute` validates tool call envelope and executes allowlisted tools only.
+- Orchestration API implemented:
+  - `POST /orchestrate` for interruption-aware intent-to-tool planning and execution.
+  - `POST /orchestrate/cancel` for cancellation signaling.
+- Orchestration safeguards implemented:
+  - Strict planner decision envelope parsing (`response` vs `tool_call`).
+  - Bounded step loop to avoid unbounded autonomous execution.
+  - Tool request/arg validation and explicit failure envelopes.
+  - Unknown/non-allowlisted tool rejection.
 
 ## Local Runtime and Deployment Baseline
 
@@ -149,3 +166,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - 2026-04-25: Added interruption-first orchestration requirement with cancellation/replan behavior.
 - 2026-04-25: Implemented deterministic CRUD APIs for events and schedules with schema validation.
 - 2026-04-25: Added migration runner and audit log persistence for state-changing actions.
+- 2026-04-25: Implemented robust Ollama client wrapper with retries, timeouts, and local model selection checks.
+- 2026-04-25: Implemented deterministic tool registry and execution endpoint with strict request/arg validation.
+- 2026-04-25: Implemented interruption-aware orchestration endpoint with explicit planner envelopes and cancellation path.
+- 2026-04-25: Added tool guardrails for allowlist enforcement and deterministic error envelopes.

@@ -56,10 +56,10 @@ Status legend:
 
 ## AI Orchestration
 
-- [ ] Implement Ollama client wrapper with timeout, retry policy, and local model selection.
-- [ ] Create tool registry that exposes deterministic backend actions to the LLM.
-- [ ] Implement interruption-first intent-to-tool orchestration flow with explicit result envelopes and cancellation/replan support.
-- [ ] Add guardrails to reject unsafe or non-deterministic tool requests.
+- [x] Implement Ollama client wrapper with timeout, retry policy, and local model selection.
+- [x] Create tool registry that exposes deterministic backend actions to the LLM.
+- [x] Implement interruption-first intent-to-tool orchestration flow with explicit result envelopes and cancellation/replan support.
+- [x] Add guardrails to reject unsafe or non-deterministic tool requests.
 
 ## Observability and Debuggability
 

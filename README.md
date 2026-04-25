@@ -55,11 +55,18 @@ This will:
 3. Create `.env` from `.env.example` if it does not exist.
 4. Start Ollama and PostgreSQL containers.
 5. Wait until both are reachable.
-6. Install `api/` and `ui/` npm dependencies once those projects are scaffolded.
+6. Pull and warm the configured Ollama model (`OLLAMA_MODEL`, default `llama3:8b`).
+7. Install `api/` and `ui/` npm dependencies once those projects are scaffolded.
+
+Note: Ollama does not publish a `llama3:7b` tag. The closest standard option is `llama3:8b` (set as the default).
 
 To skip starting containers (e.g. they are already running):
 
     SKIP_DEPS=1 ./setup.sh
+
+To skip model download/warmup during setup:
+
+       SKIP_MODEL_PULL=1 ./setup.sh
 
 > **Bazzite / ostree note:** `fnm` installs Node into your home directory. No `rpm-ostree` layering or reboots are needed. After the first run, open a new terminal for the fnm shell hook to activate automatically.
 
@@ -80,6 +87,14 @@ To skip starting containers (e.g. they are already running):
 4. Stop containers:
 
        ./scripts/compose.sh down
+
+5. Pull model manually:
+
+       ./scripts/deps.sh model
+
+6. Warm model manually:
+
+       ./scripts/deps.sh warm
 
 ## Dependency Test URLs
 

@@ -7,6 +7,8 @@ import { runMigrations } from './db/migrations.js';
 import { healthRouter } from './routes/health.js';
 import { eventsRouter } from './routes/events.js';
 import { schedulesRouter } from './routes/schedules.js';
+import { toolsRouter } from './routes/tools.js';
+import { orchestrationRouter } from './routes/orchestration.js';
 
 const app = express();
 
@@ -17,6 +19,8 @@ app.use(express.json());
 app.use('/', healthRouter);
 app.use('/events', eventsRouter);
 app.use('/schedules', schedulesRouter);
+app.use('/tools', toolsRouter);
+app.use('/', orchestrationRouter);
 
 // 404 fallback
 app.use((_req, res) => {
