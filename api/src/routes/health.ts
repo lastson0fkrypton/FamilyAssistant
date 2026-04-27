@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from 'express';
 import { checkDb } from '../db.js';
 import { checkOllama } from '../ollama-client.js';
+import { getSemanticMemoryAdapter } from '../memory/semantic/index.js';
 import { getMetricsSnapshot, getMetricsPrometheus } from '../observability/metrics.js';
 
 export const healthRouter = Router();
@@ -26,6 +27,14 @@ healthRouter.get('/readyz', async (_req: Request, res: Response) => {
     checks['ollama'] = 'ok';
   } catch {
     checks['ollama'] = 'unavailable';
+    statusCode = 503;
+  }
+
+  try {
+    await getSemanticMemoryAdapter().healthCheck();
+    checks['semanticMemory'] = 'ok';
+  } catch {
+    checks['semanticMemory'] = 'unavailable';
     statusCode = 503;
   }
 

@@ -32,6 +32,7 @@ Status legend:
 
 - [x] Scaffold a local-network web interface for voice interaction, served from the same Node.js pod/service boundary as the API.
 - [x] Polish text-input UX for the web interface while voice features remain pending.
+- [x] Add UI memory manager for KVP save/search/delete operations.
 - [ ] Implement configurable push-to-talk keypress handling in the web interface to start listening.
 - [ ] Implement listening-start notification sound playback (ding) on microphone capture start.
 - [ ] Implement browser microphone capture with voice activity/silence detection and hard timeout fallback.
@@ -55,6 +56,9 @@ Status legend:
 - [x] Create initial structured data model migrations for users, events, and schedules.
 - [x] Implement semantic memory adapter interface for Qdrant/Chroma compatibility.
 - [x] Define semantic memory ingestion contract for conversation summaries and preferences.
+- [x] Expose deterministic memory save/load/search tools (KVP + semantic) to orchestration.
+- [x] Add deterministic memory delete tools for KVP and semantic stores.
+- [x] Implement pre-planner retrieval policy for memory-oriented turns.
 
 ## AI Orchestration
 

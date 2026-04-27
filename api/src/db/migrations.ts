@@ -113,4 +113,22 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
       CREATE INDEX IF NOT EXISTS audit_log_resource_idx ON audit_log(resource_type, resource_id);
     `,
   },
+  {
+    name: '005_create_memory_kv',
+    sql: `
+      CREATE TABLE IF NOT EXISTS memory_kv (
+        id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        namespace   TEXT NOT NULL CHECK (char_length(namespace) BETWEEN 1 AND 80),
+        key         TEXT NOT NULL CHECK (char_length(key) BETWEEN 1 AND 160),
+        value       TEXT NOT NULL CHECK (char_length(value) <= 12000),
+        tags        JSONB NOT NULL DEFAULT '[]'::jsonb,
+        created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+        UNIQUE(namespace, key)
+      );
+
+      CREATE INDEX IF NOT EXISTS memory_kv_namespace_idx ON memory_kv(namespace);
+      CREATE INDEX IF NOT EXISTS memory_kv_updated_at_idx ON memory_kv(updated_at DESC);
+    `,
+  },
 ];

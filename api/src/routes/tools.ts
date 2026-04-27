@@ -1,11 +1,15 @@
 import { Router, type Request, type Response } from 'express';
-import { executeToolCall, listRegisteredTools } from '../tools/registry.js';
+import { executeToolCall, getToolManifest, listRegisteredTools } from '../tools/registry.js';
 
 export const toolsRouter = Router();
 
 // Exposes allowlisted tools to the orchestration layer.
 toolsRouter.get('/', (_req: Request, res: Response) => {
   res.json({ ok: true, data: listRegisteredTools() });
+});
+
+toolsRouter.get('/manifest', (_req: Request, res: Response) => {
+  res.json({ ok: true, data: getToolManifest() });
 });
 
 // Deterministic tool execution entrypoint for LLM tool-calling.

@@ -74,16 +74,21 @@ After setup, start the full local stack with:
 
        ./start.sh
 
+Compatibility alias:
+
+       ./run.sh
+
 This will:
 1. Ensure Node is available via `fnm`.
 2. Ensure `.env` exists.
 3. Start Ollama and PostgreSQL containers.
 4. Wait for both dependencies to become reachable.
 5. Ensure the configured Ollama model exists and warm it into memory.
-6. Verify GPU-backed Ollama execution when `OLLAMA_GPU_ENABLED=true`.
-7. Start or reuse the local API on port `3000`.
-8. Run startup smoke tests against `/healthz`, `/readyz`, and `/ui/`.
-9. Open `http://127.0.0.1:3000/ui/` in your browser.
+6. Start persistent vector memory dependency (Qdrant).
+7. Verify GPU-backed Ollama execution when `OLLAMA_GPU_ENABLED=true`.
+8. Start or reuse the local API on port `3000`.
+9. Run startup smoke tests against `/healthz`, `/readyz`, and `/ui/`.
+10. Open `http://127.0.0.1:3000/ui/` in your browser.
 
 Useful runtime options:
 
@@ -140,6 +145,7 @@ Once `./scripts/deps.sh up` has completed (or `./scripts/compose.sh up`), verify
 |------------|-----------------------------------------------------|--------------------------------------------|
 | Ollama API | http://localhost:11435/api/tags                     | JSON object with `models` array            |
 | Ollama version | http://localhost:11435/api/version              | JSON with `version` key                    |
+| Qdrant health | http://localhost:6333/health                     | JSON health response                        |
 | PostgreSQL | `psql -h localhost -p 5433 -U familyassistant -d familyassistant -c '\l'` | Database list |
 | API health        | http://localhost:3000/healthz               | `{"status":"ok"}`                          |
 | API readiness     | http://localhost:3000/readyz               | `{"status":"ready","checks":{...}}`        |
@@ -153,21 +159,51 @@ Quick curl checks:
 Prompt override:
 
        ORCHESTRATION_SYSTEM_PROMPT="Your custom planner instructions here"
+       ORCHESTRATION_MEMORY_CONTEXT="Household members, preferences, and other family notes"
 
 Set that in `.env`, then restart the API to apply it.
 
 Current prompt profile:
 
 - Friendly, family-safe assistant tone.
-- Family context for Steve, Stacey, Sienna, and Blake.
+- Child-present-safe default behavior.
+- Household identity and preferences loaded from `ORCHESTRATION_MEMORY_CONTEXT` (AI memory context), not hardcoded into base instructions.
 - Calendar and schedule help first.
 - No internet claims, no device-control claims unless a tool result proves them.
+
+Memory tools available to orchestration:
+
+- `memory.kv.save`, `memory.kv.load`, `memory.kv.search`, `memory.kv.delete` for structured key-value household memory.
+- `memory.semantic.save`, `memory.semantic.search`, `memory.semantic.delete` for semantic memory save/search/delete.
+
+Memory namespace/key conventions (recommended):
+
+- Namespace `household`: shared family policies and home-level defaults.
+- Namespace `profile.<person>`: person-specific preferences and routines.
+- Namespace `ops`: assistant operating notes and deterministic behavior constraints.
+- Key naming: lower_snake_case (`quiet_hours`, `school_pickup_window`, `dietary_preference`).
+- Tags: short topical labels (`kids`, `calendar`, `quiet-hours`, `safety`).
+
+Retrieval policy (implemented):
+
+- For schedule/preference/memory-oriented turns, orchestration performs deterministic memory recall before planner inference.
+- KVP recall searches namespace + key/value/tags.
+- Semantic recall performs vector similarity search and injects matches into planner context.
+- This recall happens before planning and does not bypass tool allowlists.
 
 Ollama GPU enablement:
 
        OLLAMA_GPU_ENABLED=true
        OLLAMA_GPU_DEVICE=nvidia.com/gpu=all
        OLLAMA_WARM_TIMEOUT_S=120
+
+Persistent semantic memory defaults:
+
+       QDRANT_PORT=6333
+       SEMANTIC_MEMORY_BACKEND=qdrant
+       QDRANT_URL=http://localhost:6333
+       QDRANT_COLLECTION=familyassistant-memory
+       QDRANT_VECTOR_SIZE=96
 
 The compose wrapper automatically adds the GPU overlay when `OLLAMA_GPU_ENABLED=true`. On Podman, this expects NVIDIA CDI support on the host. You can verify that with:
 

@@ -20,10 +20,14 @@ const EnvSchema = z.object({
   ORCHESTRATION_SYSTEM_PROMPT: z
     .string()
     .default(
-      "You are a friendly home AI assistant for a family of four: Dad is Steve, Mom is Stacey, and the children are Sienna and Blake. You help manage the family's calendar, events, and schedules, and you answer questions as helpfully as you can without internet access. Only claim capabilities that are actually available through allowlisted backend tools or the provided conversation context. Do not imply that you can control devices, access live data, browse the web, or automate anything unless a tool result in this session proves it. If no tool is needed, respond briefly, truthfully, and in a warm, family-friendly tone. Always be respectful. Return exactly one JSON object and nothing else.",
+      'You are a friendly home AI assistant helping a household manage events, schedules, tasks, and family memories. MEMORY IS CRITICAL - you MUST actively save household facts and preferences using memory.kv.save whenever users mention them. IMPORTANT FACTS TO ALWAYS SAVE: family member names, ages, schools, jobs, favorite foods/games/activities, sleep schedules, routines, rules, allergies, preferences, chores, pets. Example: If user says "Blake loves Minecraft", immediately call memory.kv.save with key="blake_favorite_game", value="Minecraft". ALSO recall relevant memories at the START of processing using memory.kv.search. You have access to a complete household memory system - USE IT ACTIVELY. Never mention internal tool names or implementation details to the user. NEVER make up memories or facts. If information is unknown or not found in memory/tool results, say you do not know yet and ask the user for the missing detail. Be friendly, family-safe, and respectful. Only claim capabilities from allowlisted tools. Return exactly one JSON object: {"kind":"response","reply":"...","done":true/false} or {"kind":"tool_call","tool":"<name>","args":{...}}',
     ),
+  ORCHESTRATION_MEMORY_CONTEXT: z.string().default(''),
   STRUCTURED_MEMORY_BACKEND: z.enum(['postgres', 'sqlite']).default('postgres'),
-  SEMANTIC_MEMORY_BACKEND: z.enum(['in-memory', 'qdrant', 'chroma']).default('in-memory'),
+  SEMANTIC_MEMORY_BACKEND: z.enum(['in-memory', 'qdrant', 'chroma']).default('qdrant'),
+  QDRANT_URL: z.string().url().default('http://localhost:6333'),
+  QDRANT_COLLECTION: z.string().min(1).max(120).default('familyassistant-memory'),
+  QDRANT_VECTOR_SIZE: z.coerce.number().int().min(8).max(4096).default(96),
   REPLAY_LOG_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   REPLAY_LOG_PATH: z.string().default('var/replay-log.ndjson'),
   LOG_LEVEL: z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']).default('info'),

@@ -20,17 +20,77 @@
         </div>
       </header>
 
-      <section id="transcript" class="transcript" aria-live="polite"></section>
+      <section class="panel-layout">
+        <!-- LEFT PANEL: Memory Management (25%) -->
+        <aside class="panel left-panel" aria-label="Memory Manager">
+          <div class="panel-header">
+            <h2>Memory</h2>
+          </div>
 
-      <form id="chatForm" class="composer">
-        <label for="prompt" class="sr-only">Prompt</label>
-        <textarea id="prompt" rows="2" placeholder="Type a message for the Family Assistant..." required></textarea>
-        <p class="composer-hint">Press Enter to send. Press Shift+Enter for a new line.</p>
-        <div class="actions">
-          <button type="button" id="interruptBtn" class="secondary">Interrupt</button>
-          <button type="submit" id="sendBtn" class="primary">Send</button>
-        </div>
-      </form>
+          <div class="panel-tabs">
+            <button class="memory-tab-btn active" data-tab="list">Available</button>
+            <button class="memory-tab-btn" data-tab="new">New</button>
+          </div>
+          
+          <div id="memoryList" class="memory-list">
+            <form id="memorySearchForm" class="memory-search-row">
+              <input id="memorySearchQuery" placeholder="Search memories" />
+              <button type="submit" class="secondary">🔍</button>
+            </form>
+            <p id="memoryStatus" class="memory-status" aria-live="polite"></p>
+            <div id="memoryResults" class="memory-results"></div>
+          </div>
+
+          <div id="memoryNewForm" class="memory-new" style="display: none;">
+            <form id="memorySaveForm" class="memory-grid">
+              <input id="memoryNamespace" placeholder="namespace" value="household" />
+              <input id="memoryKey" placeholder="key" required />
+              <textarea id="memoryValue" rows="2" placeholder="value" required></textarea>
+              <input id="memoryTags" placeholder="tags (comma separated)" style="grid-column: 1 / -1;" />
+              <button type="submit" class="primary" style="grid-column: 1 / -1;">Save</button>
+            </form>
+          </div>
+
+        </aside>
+
+        <!-- MIDDLE PANEL: Chat Window (50%) -->
+        <section class="panel center-panel">
+          <div class="chat-container">
+            <section id="transcript" class="transcript" aria-live="polite"></section>
+
+            <form id="chatForm" class="composer">
+              <label for="prompt" class="sr-only">Message</label>
+              <textarea id="prompt" rows="2" placeholder="Type a message for the Family Assistant..." required></textarea>
+              <p class="composer-hint">Enter to send • Shift+Enter for new line</p>
+              <div class="actions">
+                <button type="button" id="interruptBtn" class="secondary">Interrupt</button>
+                <button type="submit" id="sendBtn" class="primary">Send</button>
+              </div>
+            </form>
+          </div>
+        </section>
+
+        <!-- RIGHT PANEL: Tools & History (25%) -->
+        <aside class="panel right-panel" aria-label="Tools and Execution">
+
+          <div class="panel-header">
+            <h2>Tools</h2>
+          </div>
+
+          <div class="panel-tabs">
+            <button class="panel-tab-btn active" data-tab="tools">Available</button>
+            <button class="panel-tab-btn" data-tab="history">History</button>
+          </div>
+
+          <div id="toolsList" class="tools-list">
+            <p class="tools-loading">Loading tools...</p>
+          </div>
+
+          <div id="toolsHistoryPanel" class="tools-history" style="display: none;">
+            <div id="toolsHistory" class="tools-history-list"></div>
+          </div>
+        </aside>
+      </section>
     </main>
 
     <script type="module" src="./app.js"></script>

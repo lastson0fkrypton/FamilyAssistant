@@ -96,6 +96,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - Config-driven retry policy (`OLLAMA_MAX_RETRIES`, `OLLAMA_RETRY_DELAY_MS`)
   - Selected local model configuration (`OLLAMA_MODEL`)
   - Configurable planner/system prompt override (`ORCHESTRATION_SYSTEM_PROMPT`)
+  - Configurable AI memory context for household identity and preferences (`ORCHESTRATION_MEMORY_CONTEXT`)
   - Health checks that validate service reachability and report missing selected model as warning.
 - Tool registry implemented with deterministic allowlist and per-tool Zod argument validation.
 - Tool execution API implemented:
@@ -115,9 +116,17 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - SQLite compatibility stub and backend selector
 - Semantic memory adapters implemented:
   - Common `SemanticMemoryAdapter` interface
-  - Qdrant and Chroma compatibility stubs
+  - Qdrant adapter implementation for persistent vector storage
+  - Chroma compatibility stub
   - In-memory semantic adapter for local development/testing
 - Semantic ingestion contract defined for conversation summaries and extracted preferences.
+- Memory tools exposed to orchestration:
+  - Structured KVP memory tools: `memory.kv.save`, `memory.kv.load`, `memory.kv.search`
+  - Structured KVP delete tool: `memory.kv.delete`
+  - Semantic vector memory tools: `memory.semantic.save`, `memory.semantic.search`, `memory.semantic.delete`
+  - KVP storage persisted in PostgreSQL table `memory_kv`
+  - Semantic search uses deterministic local embeddings through the configured semantic adapter
+  - Retrieval policy recalls relevant KVP and semantic memory before planner inference for memory/schedule/preference turns
 - Structured request observability implemented:
   - Global correlation ID middleware (`x-correlation-id`) with response echo
   - pino-http request logging bound to correlation ID
@@ -138,6 +147,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - Dark-mode visual treatment implemented for the text-first UI
   - Enter submits the current message; Shift+Enter inserts a newline
   - Initial system greeting updated to a user-facing welcome message
+  - KVP memory manager panel for save/search/delete operations
 - Root-level runtime entrypoint implemented:
   - `./start.sh` prepares Node, starts dependency containers, ensures/warms the Ollama model, verifies GPU-backed execution when enabled, starts or reuses the local API, runs startup smoke tests, and opens `/ui`
   - Detached mode is supported with `FA_DETACH=1`
@@ -151,6 +161,7 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - Compose topology is shared across Podman and Docker.
 - Runtime selection is Podman-first with Docker fallback.
 - Optional Ollama GPU passthrough overlay is enabled via `.env` (`OLLAMA_GPU_ENABLED=true`) and uses Podman CDI device injection (`OLLAMA_GPU_DEVICE=nvidia.com/gpu=all`) on NVIDIA hosts.
+- Persistent semantic memory defaults to Qdrant via `.env` (`SEMANTIC_MEMORY_BACKEND=qdrant`, `QDRANT_URL`, `QDRANT_COLLECTION`).
 - Services in compose baseline:
   - api
   - ui
@@ -215,7 +226,9 @@ Semantic memory can inform responses but must not directly mutate canonical stat
 - 2026-04-25: Added local metrics endpoints with JSON and Prometheus output formats.
 - 2026-04-25: Added local-network web UI scaffold served from API boundary at `/ui`.
 - 2026-04-25: Added configurable orchestration system prompt and optional Podman CDI GPU passthrough for the Ollama container.
-- 2026-04-25: Added a family-specific orchestration prompt profile for Steve, Stacey, Sienna, and Blake while preserving deterministic capability guardrails.
+- 2026-04-25: Moved household-specific identity details out of hardcoded system prompt into configurable AI memory context (`ORCHESTRATION_MEMORY_CONTEXT`) while keeping family-friendly and child-safe behavior in base instructions.
 - 2026-04-25: Added `start.sh` as the primary local runtime entrypoint with dependency startup, model warmup, GPU verification, API smoke tests, and browser launch.
 - 2026-04-25: Added `stop.sh` as the matching local shutdown entrypoint for the API and dependency containers.
 - 2026-04-25: Refined the text-first web UI with dark mode, Enter-to-send, and a more natural welcome message.
+- 2026-04-26: Added deterministic memory tool access for save/load/search across KVP and semantic memory stores.
+- 2026-04-26: Added memory delete tools, pre-planner memory retrieval policy, persistent Qdrant vector backend defaults, and UI KVP memory manager controls.

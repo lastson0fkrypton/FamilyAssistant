@@ -13,6 +13,7 @@ interface OllamaGenerateRequest {
   model: string;
   prompt: string;
   stream?: boolean;
+  format?: 'json';
 }
 
 interface OllamaGenerateResponse {
@@ -101,11 +102,20 @@ export class OllamaClient {
   }
 
   async generate(prompt: string): Promise<OllamaGenerateResponse> {
+    return this.generateInternal(prompt, undefined);
+  }
+
+  async generateJson(prompt: string): Promise<OllamaGenerateResponse> {
+    return this.generateInternal(prompt, 'json');
+  }
+
+  private async generateInternal(prompt: string, format?: 'json'): Promise<OllamaGenerateResponse> {
     await this.ensureSelectedModelAvailable();
     const response = await this.requestWithBody<OllamaGenerateResponse, OllamaGenerateRequest>('/api/generate', {
       model: this.model,
       prompt,
       stream: false,
+      format,
     }, this.generateTimeoutMs);
 
     const outputTokens = response.eval_count ?? 0;
