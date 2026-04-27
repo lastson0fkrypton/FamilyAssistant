@@ -5,9 +5,8 @@ import {
   type OrchestrationResponse,
 } from '@familyassistant/schemas';
 import { v4 as uuidv4 } from 'uuid';
-import { config } from '../config.js';
 import { getOllamaClient } from '../ollama-client.js';
-import { executeToolCall, getToolManifest } from '../tools/registry.js';
+import { executeToolCall, getOllamaToolDefinitions, getToolManifest } from '../tools/registry.js';
 import { logger } from '../logger.js';
 import * as MemoryKvService from '../services/memory-kv.js';
 
@@ -28,6 +27,14 @@ const LlmDecisionSchema = z.discriminatedUnion('kind', [
 
 type LlmDecision = z.infer<typeof LlmDecisionSchema>;
 
+const ORCHESTRATION_SYSTEM_PROMPT = [
+  'You are a friendly household AI assistant helping manage events and memories.',
+  'Be concise, factual, and operational.',
+  'Use memory.add to save durable household facts and preferences.',
+  'Use memory.remove to forget saved facts when asked.',
+  'Use event tools when the user asks about events or wants to manage them.',
+].join(' ');
+
 // ── Utility helpers ────────────────────────────────────────────────────────
 
 function extractJsonObject(raw: string): string {
@@ -37,6 +44,65 @@ function extractJsonObject(raw: string): string {
     throw new Error('LLM did not return a JSON object');
   }
   return raw.slice(start, end + 1);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function parseDecisionFromValue(value: unknown): LlmDecision | null {
+  const parsed = LlmDecisionSchema.safeParse(value);
+  if (parsed.success) {
+    return parsed.data;
+  }
+
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  if (value['kind'] === 'response') {
+    const reply = value['reply'];
+
+    if (typeof reply === 'string' && reply.trim().length > 0) {
+      return {
+        kind: 'response',
+        reply: reply.trim(),
+        done: typeof value['done'] === 'boolean' ? value['done'] : true,
+      };
+    }
+
+    const nestedReplyDecision = parseDecisionFromValue(reply);
+    if (nestedReplyDecision) {
+      return nestedReplyDecision;
+    }
+  }
+
+  if (value['kind'] === 'tool_call' && typeof value['tool'] === 'string') {
+    return {
+      kind: 'tool_call',
+      tool: value['tool'],
+      args: isRecord(value['args']) ? value['args'] : {},
+    };
+  }
+
+  if (Array.isArray(value['tool_calls'])) {
+    for (const candidate of value['tool_calls']) {
+      const nestedDecision = parseDecisionFromValue(candidate);
+      if (nestedDecision?.kind === 'tool_call') {
+        return nestedDecision;
+      }
+    }
+  }
+
+  if (typeof value['tool'] === 'string') {
+    return {
+      kind: 'tool_call',
+      tool: value['tool'],
+      args: isRecord(value['args']) ? value['args'] : {},
+    };
+  }
+
+  return null;
 }
 
 function parsePlannerDecisionFromRaw(rawText: string): LlmDecision | null {
@@ -61,9 +127,10 @@ function parsePlannerDecisionFromRaw(rawText: string): LlmDecision | null {
 
   for (const candidate of candidates) {
     try {
-      const parsed = LlmDecisionSchema.safeParse(JSON.parse(candidate));
-      if (parsed.success) {
-        return parsed.data;
+      const parsedValue = JSON.parse(candidate);
+      const decision = parseDecisionFromValue(parsedValue);
+      if (decision) {
+        return decision;
       }
     } catch {
       // Try next candidate.
@@ -88,11 +155,25 @@ function buildReplyFallbackFromRaw(rawText: string): string {
       .trim(),
   );
 
-  if (cleaned.length === 0) {
+  if (cleaned.length === 0 || (/^\{[\s\S]*\}$/.test(cleaned) && cleaned.includes('"kind"'))) {
     return 'I had trouble formatting my previous step. Please try again and I will continue from the latest context.';
   }
 
   return cleaned;
+}
+
+function extractValidationFieldHints(errorMessage: string): string[] {
+  const fields = new Set<string>();
+  const regex = /"path"\s*:\s*\[\s*"([^"]+)"/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = regex.exec(errorMessage)) !== null) {
+    if (match[1]) {
+      fields.add(match[1]);
+    }
+  }
+
+  return [...fields];
 }
 
 // ── Memory recall ──────────────────────────────────────────────────────────
@@ -129,64 +210,13 @@ function buildToolManifestText(): string {
     .join('\n');
 }
 
-// ── Planner prompt ─────────────────────────────────────────────────────────
 
-function buildPlannerPrompt(
+function buildPrompt(
   input: OrchestrationRequest,
   scratchpad: string,
   recalledMemory: string,
-): string {
-  const history = input.history
-    .slice(-10)
-    .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
-    .join('\n');
-
-  const toolManifest = buildToolManifestText();
-
-  return [
-    config.ORCHESTRATION_SYSTEM_PROMPT,
-    '',
-    '=== INSTRUCTIONS ===',
-    'You are a household AI assistant. On every turn, do the following:',
-    '1. Identify the subjects (people, topics) and action the user wants.',
-    '2. Check whether the action maps to an available tool below.',
-    '3. If an action requires a tool: return {"kind":"tool_call","tool":"<name>","args":{...}}',
-    '4. If this is a question or conversational response: return {"kind":"response","reply":"...","done":true}',
-    '',
-    'Rules:',
-    '- Return EXACTLY one JSON object, nothing else.',
-    '- Do NOT output markdown code fences.',
-    '- Decide between tool_call vs response from user intent and available tools; do not stall in planning language.',
-    '- Use memory context provided in this prompt before deciding to call a tool.',
-    '- When the user states a fact or preference, use memory.add to save it.',
-    '- When the user asks to forget or remove a memory, use memory.remove.',
-    '- When asked about events, call events.list or events.get as needed.',
-    '- Do not ask for confirmation to list events when the user already requested it.',
-    '- If the previous assistant turn offered to check events and the user replies with "yes/please/go ahead", your next output MUST be a tool_call to the relevant event tool.',
-    '- Never output planning text like "Let me check" unless a tool_call has already been emitted in this turn.',
-    '- Use recalled memory as context to enrich your response, but do not invent facts that are not there.',
-    '- Never expose tool names, technical identifiers, or internal details in user-facing replies.',
-    '- If you do not have the answer and no tool can provide it, say you do not know and ask.',
-    '',
-    '=== AVAILABLE TOOLS ===',
-    toolManifest,
-    '',
-    '=== RECALLED MEMORY (use as context, do not invent beyond this) ===',
-    recalledMemory,
-    '',
-    '=== CONVERSATION HISTORY ===',
-    history || '(none)',
-    '',
-    `USER: ${input.input}`,
-    '',
-    '=== SCRATCHPAD (tool results from earlier steps this turn) ===',
-    scratchpad || '(none)',
-  ]
-    .filter((line) => line !== undefined)
-    .join('\n');
-}
-
-function buildDirectPrompt(input: OrchestrationRequest, scratchpad: string, recalledMemory: string): string {
+  repairToolName?: string,
+): { system: string; user: string } {
   const history = input.history
     .slice(-8)
     .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
@@ -194,79 +224,104 @@ function buildDirectPrompt(input: OrchestrationRequest, scratchpad: string, reca
 
   const toolManifest = buildToolManifestText();
 
-  return [
-    config.ORCHESTRATION_SYSTEM_PROMPT,
+  const system = [
+    ORCHESTRATION_SYSTEM_PROMPT,
     '',
-    'Return EXACTLY one JSON object and nothing else.',
-    'Allowed outputs:',
-    '{"kind":"tool_call","tool":"<name>","args":{...}}',
-    '{"kind":"response","reply":"...","done":true}',
+    'Respond naturally to the user unless a tool call is needed.',
+    'When a tool is needed, call it directly using the provided native tool interface.',
+    'Do not fabricate tool output.',
     '',
-    'Guidance:',
-    '- Memory context below is preloaded from tokenized user input; use it before deciding on tools.',
-    '- Use tool_call for event and memory actions that require writes or event retrieval.',
-    '- Use memory.add for saving facts/preferences and memory.remove for deletion requests.',
-    '- After retrieving tool results (see scratchpad), synthesize a helpful response instead of re-calling the same tool.',
-    '- If responding conversationally, keep it concise and helpful.',
-    '- Do not expose internal tool identifiers in user-facing reply text.',
-    '- Do not fabricate facts not present in provided memory context or tool results.',
+    'DECISION RULES (apply in order):',
+    '1. User wants to save/remember a fact or preference -> call memory.add',
+    '2. User wants to forget/delete a fact -> call memory.remove',
+    '3. User wants event info or to manage events -> call the appropriate events.* tool',
+    '4. Otherwise -> provide a helpful concise response',
     '',
-    'Available tools:',
+    'IMPORTANT: If the user asks to add an event and gives a local date/time, convert it to a full ISO datetime with timezone, e.g. 2026-04-29T17:00:00Z.',
+    'IMPORTANT: If the scratchpad shows a validation error, call the same tool again with corrected fields.',
+    'IMPORTANT: After a tool result appears in the scratchpad, synthesize a reply instead of re-calling the same tool.',
+    'IMPORTANT: Never expose tool names or internal identifiers in reply text.',
+    'IMPORTANT: If recalled memory already contains the fact the user is stating, do not call memory.add again.',
+    'IMPORTANT: For recommendation questions, use recalled memory directly in the reply.',
+    'IMPORTANT: Use the exact parameter names from the tool manifest. Do not invent aliases like start_date when the tool requires startsAt.',
+    '',
+    '=== AVAILABLE TOOLS ===',
     toolManifest,
-    '',
-    'Relevant memory:',
+  ].join('\n');
+
+  const user = [
+    '=== RECALLED MEMORY ===',
     recalledMemory,
     '',
-    'Conversation history:',
+    '=== CONVERSATION HISTORY ===',
     history || '(none)',
     '',
-    'Tool execution results from earlier steps this turn:',
+    '=== TOOL RESULTS FROM EARLIER STEPS THIS TURN ===',
     scratchpad || '(none)',
     '',
+    repairToolName
+      ? `=== REPAIR MODE ===\nYour last call to ${repairToolName} failed. Do not explain the error to the user. Return a corrected tool_call for ${repairToolName}.`
+      : undefined,
+    repairToolName
+      ? 'Use the exact field names required by the manifest and infer obvious missing values from the user request when possible.'
+      : undefined,
+    '',
     `USER: ${input.input}`,
+    'OUTPUT:',
   ].join('\n');
+
+  return { system, user };
 }
 
 // ── Planner call ───────────────────────────────────────────────────────────
 
-async function askPlanner(
+async function askOllama(
   input: OrchestrationRequest,
   scratchpad: string,
   memoryQuery: string,
+  repairToolName?: string,
 ): Promise<LlmDecision> {
   const client = getOllamaClient();
   const recalledMemory = await recallMemory(memoryQuery, input.sessionId);
-  const prompt = input.usePlanner
-    ? buildPlannerPrompt(input, scratchpad, recalledMemory)
-    : buildDirectPrompt(input, scratchpad, recalledMemory);
-  
+  const { system, user } = buildPrompt(input, scratchpad, recalledMemory, repairToolName);
+  const toolDefinitions = getOllamaToolDefinitions();
+
   console.log('[SERVER-PLANNER] Generated prompt:', {
-    mode: input.usePlanner ? 'PLANNER' : 'DIRECT',
     userInput: input.input,
-    promptLength: prompt.length,
-    promptPreview: prompt.slice(0, 300) + '...',
+    systemLength: system.length,
+    userLength: user.length,
     recalledMemoryLength: recalledMemory.length,
     scratchpadLength: scratchpad.length,
   });
-  
-  const response = await client.generateJson(prompt);
-  const rawText = response.response ?? '';
+
+  const modelOutput = await client.chatWithTools(system, user, toolDefinitions);
+  const rawText = modelOutput.content;
 
   console.log('[SERVER-PLANNER] LLM raw response:', {
     responseLength: rawText.length,
     responsePreview: rawText.slice(0, 400),
     fullResponse: rawText,
+    nativeToolCalls: modelOutput.toolCalls,
   });
 
+  if (modelOutput.toolCalls.length > 0) {
+    const firstCall = modelOutput.toolCalls[0];
+    return {
+      kind: 'tool_call',
+      tool: firstCall.name,
+      args: firstCall.args,
+    };
+  }
+
   const decision = parsePlannerDecisionFromRaw(rawText);
-  
+
   console.log('[SERVER-PLANNER] Parsed decision:', {
     kind: decision?.kind,
     tool: decision?.kind === 'tool_call' ? decision.tool : undefined,
     reply: decision?.kind === 'response' ? decision.reply : undefined,
     parseSuccess: !!decision,
   });
-  
+
   if (decision) {
     return decision;
   }
@@ -293,11 +348,14 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
   const maxSteps = 6;
   const toolsExecuted: string[] = [];
   let scratchpad = '';
+  let repairToolName: string | undefined;
+  let repairResponseCount = 0;
+  let lastFailedSignature = '';
+  let repeatedFailureCount = 0;
 
   console.log('[SERVER-ORCHESTRATE] Starting orchestration:', {
     sessionId: parsed.sessionId,
     userInput: parsed.input,
-    usePlanner: parsed.usePlanner,
     historyLength: parsed.history.length,
     timestamp: new Date().toISOString(),
   });
@@ -308,7 +366,7 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
   for (let step = 0; step < maxSteps; step += 1) {
     console.log(`[SERVER-ORCHESTRATE-STEP] Step ${step + 1}/${maxSteps}`);
     
-    const decision = await askPlanner(parsed, scratchpad, memoryQuery);
+    const decision = await askOllama(parsed, scratchpad, memoryQuery, repairToolName);
 
     console.log(`[SERVER-ORCHESTRATE-STEP] Step ${step + 1} decision:`, {
       kind: decision.kind,
@@ -316,6 +374,27 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
     });
 
     if (decision.kind === 'response') {
+      if (repairToolName) {
+        repairResponseCount += 1;
+
+        if (repairResponseCount >= 2) {
+          console.log('[SERVER-ORCHESTRATE] Repair mode aborted after repeated non-tool responses', {
+            repairToolName,
+            repairResponseCount,
+          });
+
+          return {
+            sessionId: parsed.sessionId,
+            reply: 'I could not repair that tool call automatically. Please try again with explicit date/time details including timezone (for example: 2026-04-29T17:00:00Z).',
+            toolsExecuted,
+            done: false,
+          };
+        }
+
+        scratchpad += `\n[repair] The previous model output was a user-facing response while ${repairToolName} still needed corrected arguments. Return a corrected ${repairToolName} tool_call instead.`;
+        continue;
+      }
+
       console.log('[SERVER-ORCHESTRATE] Orchestration complete with response:', {
         reply: decision.reply.slice(0, 100),
         toolsExecuted,
@@ -364,14 +443,50 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
     memoryQuery = `${parsed.input} ${resultSummary}`.slice(0, 400);
 
     if (!toolResult.ok) {
-      console.log('[SERVER-ORCHESTRATE] Tool failed, returning error response');
-      return {
-        sessionId: parsed.sessionId,
-        reply: 'I could not complete that action right now. I can still help if you want a direct answer or want to try the action again with a bit more detail.',
-        toolsExecuted,
-        done: false,
-      };
+      repairToolName = decision.tool;
+      repairResponseCount = 0;
+
+      const signature = `${decision.tool}:${JSON.stringify(decision.args)}:${toolResult.error.code}:${toolResult.error.message}`;
+      if (signature === lastFailedSignature) {
+        repeatedFailureCount += 1;
+      } else {
+        repeatedFailureCount = 1;
+        lastFailedSignature = signature;
+      }
+
+      if (repeatedFailureCount >= 2) {
+        const fieldHints = extractValidationFieldHints(toolResult.error.message);
+        const hintText = fieldHints.length > 0
+          ? ` Missing or invalid fields: ${fieldHints.join(', ')}.`
+          : '';
+
+        console.log('[SERVER-ORCHESTRATE] Repeated identical tool failure, aborting repair loop', {
+          tool: decision.tool,
+          repeatedFailureCount,
+          fieldHints,
+        });
+
+        return {
+          sessionId: parsed.sessionId,
+          reply: `I could not complete that action because the tool arguments are still invalid.${hintText} Please restate the request with exact values and I will try again.`,
+          toolsExecuted,
+          done: false,
+        };
+      }
+
+      console.log('[SERVER-ORCHESTRATE] Tool failed, continuing so the model can repair and retry:', {
+        step: step + 1,
+        tool: decision.tool,
+        error: toolResult.error,
+      });
+
+      continue;
     }
+
+    repairToolName = undefined;
+    repairResponseCount = 0;
+    lastFailedSignature = '';
+    repeatedFailureCount = 0;
   }
 
   console.log('[SERVER-ORCHESTRATE] Max steps reached without completing');

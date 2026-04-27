@@ -32,6 +32,20 @@ export interface ToolManifestEntry {
   parameters: string;
 }
 
+export interface OllamaToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, unknown>;
+      required?: string[];
+      additionalProperties?: boolean;
+    };
+  };
+}
+
 function unwrapSchema(schema: ZodTypeAny): ZodTypeAny {
   let current = schema as ZodTypeAny & { _def?: { innerType?: ZodTypeAny } };
   while (current?._def?.innerType) {
@@ -147,6 +161,136 @@ export function getToolManifest(): ToolManifestEntry[] {
     keywords,
     parameters: describeInputSchema(inputSchema),
   }));
+}
+
+export function getOllamaToolDefinitions(): OllamaToolDefinition[] {
+  return [
+    {
+      type: 'function',
+      function: {
+        name: 'events.list',
+        description: 'List household events in time order with optional date filtering.',
+        parameters: {
+          type: 'object',
+          properties: {
+            from: { type: 'string', description: 'Inclusive ISO datetime lower bound with timezone offset.' },
+            to: { type: 'string', description: 'Inclusive ISO datetime upper bound with timezone offset.' },
+            limit: { type: 'number', minimum: 1, maximum: 200, default: 50 },
+            offset: { type: 'number', minimum: 0, default: 0 },
+          },
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'events.get',
+        description: 'Fetch a specific event by id.',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'UUID of the event.' },
+          },
+          required: ['id'],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'events.add',
+        description: 'Create a new event.',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: { type: 'string' },
+            description: { type: 'string' },
+            startsAt: { type: 'string', description: 'ISO datetime with timezone, for example 2026-04-29T17:00:00Z' },
+            endsAt: { type: 'string', description: 'ISO datetime with timezone.' },
+            allDay: { type: 'boolean' },
+            location: { type: 'string' },
+          },
+          required: ['title', 'startsAt'],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'events.update',
+        description: 'Update mutable fields of an existing event by id.',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'UUID of the event.' },
+            patch: {
+              type: 'object',
+              properties: {
+                title: { type: 'string' },
+                description: { type: 'string' },
+                startsAt: { type: 'string', description: 'ISO datetime with timezone.' },
+                endsAt: { type: 'string', description: 'ISO datetime with timezone.' },
+                allDay: { type: 'boolean' },
+                location: { type: 'string' },
+              },
+              additionalProperties: false,
+            },
+          },
+          required: ['id', 'patch'],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'events.delete',
+        description: 'Delete an event by id.',
+        parameters: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', description: 'UUID of the event.' },
+          },
+          required: ['id'],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'memory.add',
+        description: 'Save a durable household memory note.',
+        parameters: {
+          type: 'object',
+          properties: {
+            memory: { type: 'string' },
+            tags: { type: 'array', items: { type: 'string' } },
+          },
+          required: ['memory'],
+          additionalProperties: false,
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'memory.remove',
+        description: 'Remove memory notes that exactly match the provided text.',
+        parameters: {
+          type: 'object',
+          properties: {
+            memory: { type: 'string' },
+          },
+          required: ['memory'],
+          additionalProperties: false,
+        },
+      },
+    },
+  ];
 }
 
 function successResult(

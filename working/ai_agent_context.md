@@ -95,8 +95,6 @@ Semantic memory can inform responses but must not directly mutate canonical stat
   - Config-driven timeout (`OLLAMA_TIMEOUT_MS`)
   - Config-driven retry policy (`OLLAMA_MAX_RETRIES`, `OLLAMA_RETRY_DELAY_MS`)
   - Selected local model configuration (`OLLAMA_MODEL`)
-  - Configurable planner/system prompt override (`ORCHESTRATION_SYSTEM_PROMPT`)
-  - Configurable AI memory context for household identity and preferences (`ORCHESTRATION_MEMORY_CONTEXT`)
   - Health checks that validate service reachability and report missing selected model as warning.
 - Tool registry implemented with deterministic allowlist and per-tool Zod argument validation.
 - Tool execution API implemented:

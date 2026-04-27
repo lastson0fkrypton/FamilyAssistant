@@ -9,15 +9,42 @@ interface OllamaTagsResponse {
   models?: Array<{ name?: string }>;
 }
 
-interface OllamaGenerateRequest {
+interface OllamaChatMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
+interface OllamaToolCall {
+  function?: {
+    name?: string;
+    arguments?: unknown;
+  };
+}
+
+interface OllamaToolDefinition {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: {
+      type: 'object';
+      properties: Record<string, unknown>;
+      required?: string[];
+      additionalProperties?: boolean;
+    };
+  };
+}
+
+interface OllamaChatRequest {
   model: string;
-  prompt: string;
+  messages: OllamaChatMessage[];
+  tools?: OllamaToolDefinition[];
   stream?: boolean;
   format?: 'json';
 }
 
-interface OllamaGenerateResponse {
-  response?: string;
+interface OllamaChatResponse {
+  message?: { role?: string; content?: string; tool_calls?: OllamaToolCall[] };
   done?: boolean;
   total_duration?: number;
   load_duration?: number;
@@ -25,6 +52,21 @@ interface OllamaGenerateResponse {
   prompt_eval_duration?: number;
   eval_count?: number;
   eval_duration?: number;
+}
+
+export interface OllamaToolCallResult {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+export interface OllamaChatWithToolsResult {
+  content: string;
+  toolCalls: OllamaToolCallResult[];
+}
+
+/** @deprecated use chatJson */
+interface OllamaGenerateResponse {
+  response?: string;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -101,21 +143,16 @@ export class OllamaClient {
     logger.debug({ version: body.version, model: this.model }, 'Ollama reachable');
   }
 
-  async generate(prompt: string): Promise<OllamaGenerateResponse> {
-    return this.generateInternal(prompt, undefined);
-  }
-
-  async generateJson(prompt: string): Promise<OllamaGenerateResponse> {
-    return this.generateInternal(prompt, 'json');
-  }
-
-  private async generateInternal(prompt: string, format?: 'json'): Promise<OllamaGenerateResponse> {
+  async chatJson(systemPrompt: string, userMessage: string): Promise<string> {
     await this.ensureSelectedModelAvailable();
-    const response = await this.requestWithBody<OllamaGenerateResponse, OllamaGenerateRequest>('/api/generate', {
+    const response = await this.requestWithBody<OllamaChatResponse, OllamaChatRequest>('/api/chat', {
       model: this.model,
-      prompt,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
       stream: false,
-      format,
+      format: 'json',
     }, this.generateTimeoutMs);
 
     const outputTokens = response.eval_count ?? 0;
@@ -135,10 +172,82 @@ export class OllamaClient {
         evalDurationMs: outputDurationMs,
         tokensPerSecond,
       },
-      'Ollama generation completed',
+      'Ollama chat completed',
     );
 
-    return response;
+    return response.message?.content ?? '';
+  }
+
+  async chatWithTools(
+    systemPrompt: string,
+    userMessage: string,
+    tools: OllamaToolDefinition[],
+  ): Promise<OllamaChatWithToolsResult> {
+    await this.ensureSelectedModelAvailable();
+    const response = await this.requestWithBody<OllamaChatResponse, OllamaChatRequest>('/api/chat', {
+      model: this.model,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+      tools,
+      stream: false,
+    }, this.generateTimeoutMs);
+
+    const outputTokens = response.eval_count ?? 0;
+    const outputDurationMs = nanosToMs(response.eval_duration);
+    const tokensPerSecond = outputTokens > 0 && outputDurationMs && outputDurationMs > 0
+      ? Number(((outputTokens * 1000) / outputDurationMs).toFixed(2))
+      : undefined;
+
+    logger.info(
+      {
+        model: this.model,
+        totalDurationMs: nanosToMs(response.total_duration),
+        loadDurationMs: nanosToMs(response.load_duration),
+        promptEvalCount: response.prompt_eval_count,
+        promptEvalDurationMs: nanosToMs(response.prompt_eval_duration),
+        evalCount: response.eval_count,
+        evalDurationMs: outputDurationMs,
+        tokensPerSecond,
+      },
+      'Ollama chat with tools completed',
+    );
+
+    const toolCalls = (response.message?.tool_calls ?? [])
+      .map((toolCall): OllamaToolCallResult | null => {
+        const name = toolCall.function?.name;
+        const rawArgs = toolCall.function?.arguments;
+
+        if (!name || typeof name !== 'string') {
+          return null;
+        }
+
+        if (rawArgs === undefined || rawArgs === null) {
+          return { name, args: {} };
+        }
+
+        if (typeof rawArgs === 'string') {
+          try {
+            const parsed = JSON.parse(rawArgs) as unknown;
+            return { name, args: (typeof parsed === 'object' && parsed !== null) ? parsed as Record<string, unknown> : {} };
+          } catch {
+            return { name, args: {} };
+          }
+        }
+
+        if (typeof rawArgs === 'object') {
+          return { name, args: rawArgs as Record<string, unknown> };
+        }
+
+        return { name, args: {} };
+      })
+      .filter((tool): tool is OllamaToolCallResult => tool !== null);
+
+    return {
+      content: response.message?.content ?? '',
+      toolCalls,
+    };
   }
 
   private async request<T>(path: string): Promise<T> {

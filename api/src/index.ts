@@ -8,6 +8,7 @@ import { pool } from './db.js';
 import { runMigrations } from './db/migrations.js';
 import { healthRouter } from './routes/health.js';
 import { eventsRouter } from './routes/events.js';
+import { memoriesRouter } from './routes/memories.js';
 import { toolsRouter } from './routes/tools.js';
 import { orchestrationRouter } from './routes/orchestration.js';
 import { correlationIdMiddleware } from './middleware/correlation-id.js';
@@ -35,6 +36,7 @@ app.get('/', (_req, res) => {
 // Routes
 app.use('/', healthRouter);
 app.use('/events', eventsRouter);
+app.use('/memories', memoriesRouter);
 app.use('/tools', toolsRouter);
 app.use('/', orchestrationRouter);
 

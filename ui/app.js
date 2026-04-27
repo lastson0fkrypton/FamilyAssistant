@@ -4,7 +4,6 @@ const statusEl = document.getElementById('status');
 const formEl = document.getElementById('chatForm');
 const promptEl = document.getElementById('prompt');
 const sendBtn = document.getElementById('sendBtn');
-const usePlannerToggleEl = document.getElementById('usePlannerToggle');
 const chatViewEl = document.getElementById('chatView');
 const calendarViewEl = document.getElementById('calendarView');
 const centerTabButtons = document.querySelectorAll('.center-tab-btn');
@@ -57,6 +56,24 @@ async function fetchEvents() {
   }
 
   return Array.isArray(body.data) ? body.data : [];
+}
+
+async function fetchMemories() {
+  const response = await fetch('/memories?limit=200', {
+    headers: { 'content-type': 'application/json' },
+  });
+
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    throw new Error(body?.error?.message || 'Failed to load memories');
+  }
+
+  return Array.isArray(body.data) ? body.data : [];
+}
+
+async function refreshMemories() {
+  memoryRows = await fetchMemories();
+  refreshMemoryResults();
 }
 
 async function refreshCalendar() {
@@ -146,12 +163,10 @@ async function callOrchestrate(input) {
     sessionId,
     history,
     input,
-    usePlanner: Boolean(usePlannerToggleEl?.checked ?? true),
   };
 
   console.log('[CLIENT] Sending orchestrate request:', {
     input: payload.input,
-    usePlanner: payload.usePlanner,
     historyLength: payload.history.length,
     timestamp: new Date().toISOString(),
   });
@@ -429,6 +444,10 @@ formEl.addEventListener('submit', async (event) => {
         ensureCalendar();
         refreshCalendar();
       }
+
+      if (result.toolsExecuted.some((tool) => tool.startsWith('memory.'))) {
+        await refreshMemories();
+      }
     }
   } catch (error) {
     addMessage('system', `error: ${error.message}`);
@@ -463,12 +482,11 @@ memorySaveFormEl.addEventListener('submit', async (event) => {
   }
 
   try {
-    const saved = await executeTool('memory.add', { memory, tags });
-    memoryRows.unshift(saved);
+    await executeTool('memory.add', { memory, tags });
     memoryValueEl.value = '';
     memoryTagsEl.value = '';
     setMemoryStatus('Memory added.');
-    refreshMemoryResults();
+    await refreshMemories();
   } catch (error) {
     setMemoryStatus(`Memory save failed: ${error.message}`);
   }
@@ -493,9 +511,8 @@ memoryResultsEl.addEventListener('click', async (event) => {
 
   try {
     await executeTool('memory.remove', { memory });
-    memoryRows = memoryRows.filter((row) => row.memory !== memory);
     setMemoryStatus('Memory removed.');
-    refreshMemoryResults();
+    await refreshMemories();
   } catch (error) {
     setMemoryStatus(`Memory delete failed: ${error.message}`);
   }
@@ -506,8 +523,8 @@ async function initialize() {
   promptEl.focus();
 
   await fetchAvailableTools();
+  await refreshMemories();
   renderToolsHistory();
-  renderMemoryResults(memoryRows);
   switchCenterTab('chat');
 }
 

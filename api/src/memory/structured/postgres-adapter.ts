@@ -30,7 +30,7 @@ function rowToEvent(row: Record<string, unknown>): Event {
     endsAt: row['ends_at'] ? (row['ends_at'] as Date).toISOString() : undefined,
     allDay: row['all_day'] as boolean,
     location: (row['location'] as string | null) ?? undefined,
-    createdBy: row['created_by'] as string,
+    createdBy: (row['created_by'] as string | null) ?? undefined,
     createdAt: (row['created_at'] as Date).toISOString(),
     updatedAt: (row['updated_at'] as Date).toISOString(),
   };
@@ -123,14 +123,14 @@ export class PostgresStructuredMemoryAdapter implements StructuredMemoryAdapter 
         input.endsAt ?? null,
         input.allDay ?? false,
         input.location ?? null,
-        input.createdBy,
+        null,
       ],
     );
 
     const event = rowToEvent(rows[0]);
     await audit({
       correlationId,
-      actorId: input.createdBy,
+      actorId: undefined,
       action: 'create',
       resourceType: 'event',
       resourceId: event.id,

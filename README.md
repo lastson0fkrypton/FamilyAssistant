@@ -156,11 +156,6 @@ Quick curl checks:
     curl http://localhost:11435/api/tags
     curl http://localhost:11435/api/version
 
-Prompt override:
-
-       ORCHESTRATION_SYSTEM_PROMPT="Your custom planner instructions here"
-       ORCHESTRATION_MEMORY_CONTEXT="Household members, preferences, and other family notes"
-
 Set that in `.env`, then restart the API to apply it.
 
 Current prompt profile:

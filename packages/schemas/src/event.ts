@@ -11,7 +11,7 @@ export const EventSchema = z.object({
   endsAt: IsoDateTimeSchema.optional(),
   allDay: z.boolean().default(false),
   location: z.string().max(300).optional(),
-  createdBy: UuidSchema,
+  createdBy: UuidSchema.optional(),
   createdAt: IsoDateTimeSchema,
   updatedAt: IsoDateTimeSchema,
 });
@@ -23,10 +23,9 @@ export const CreateEventSchema = EventSchema.pick({
   endsAt: true,
   allDay: true,
   location: true,
-  createdBy: true,
 });
 
-export const UpdateEventSchema = CreateEventSchema.omit({ createdBy: true }).partial();
+export const UpdateEventSchema = CreateEventSchema.partial();
 
 export const EventListQuerySchema = z.object({
   from: IsoDateTimeSchema.optional(),

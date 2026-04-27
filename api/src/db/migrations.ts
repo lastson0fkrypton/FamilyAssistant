@@ -109,4 +109,11 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
       CREATE INDEX IF NOT EXISTS memories_updated_at_idx ON memories(updated_at DESC);
     `,
   },
+  {
+    name: '005_make_event_created_by_optional',
+    sql: `
+      ALTER TABLE events
+      ALTER COLUMN created_by DROP NOT NULL;
+    `,
+  },
 ];

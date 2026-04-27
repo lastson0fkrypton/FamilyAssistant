@@ -17,12 +17,6 @@ const EnvSchema = z.object({
   OLLAMA_GENERATE_TIMEOUT_MS: z.coerce.number().int().min(100).max(300000).default(60000),
   OLLAMA_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
   OLLAMA_RETRY_DELAY_MS: z.coerce.number().int().min(0).max(10000).default(500),
-  ORCHESTRATION_SYSTEM_PROMPT: z
-    .string()
-    .default(
-      'You are a friendly home AI assistant helping a household manage events and memories. Save user facts with memory.add, remove facts with memory.remove, and use event tools when event data is needed. Never mention internal tool names to users. Never invent facts. Return exactly one JSON object: {"kind":"response","reply":"...","done":true/false} or {"kind":"tool_call","tool":"<name>","args":{...}}',
-    ),
-  ORCHESTRATION_MEMORY_CONTEXT: z.string().default(''),
   STRUCTURED_MEMORY_BACKEND: z.enum(['postgres', 'sqlite']).default('postgres'),
   REPLAY_LOG_ENABLED: z.enum(['true', 'false']).default('true').transform((v) => v === 'true'),
   REPLAY_LOG_PATH: z.string().default('var/replay-log.ndjson'),
