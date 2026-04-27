@@ -7,6 +7,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;600&display=swap" rel="stylesheet" />
+    <link href="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.css" rel="stylesheet" />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
@@ -34,7 +35,7 @@
           
           <div id="memoryList" class="memory-list">
             <form id="memorySearchForm" class="memory-search-row">
-              <input id="memorySearchQuery" placeholder="Search memories" />
+              <input id="memorySearchQuery" placeholder="Filter locally" />
               <button type="submit" class="secondary">🔍</button>
             </form>
             <p id="memoryStatus" class="memory-status" aria-live="polite"></p>
@@ -43,11 +44,9 @@
 
           <div id="memoryNewForm" class="memory-new" style="display: none;">
             <form id="memorySaveForm" class="memory-grid">
-              <input id="memoryNamespace" placeholder="namespace" value="household" />
-              <input id="memoryKey" placeholder="key" required />
-              <textarea id="memoryValue" rows="2" placeholder="value" required></textarea>
+              <textarea id="memoryValue" rows="3" placeholder="memory text" required style="grid-column: 1 / -1;"></textarea>
               <input id="memoryTags" placeholder="tags (comma separated)" style="grid-column: 1 / -1;" />
-              <button type="submit" class="primary" style="grid-column: 1 / -1;">Save</button>
+              <button type="submit" class="primary" style="grid-column: 1 / -1;">Add Memory</button>
             </form>
           </div>
 
@@ -55,18 +54,42 @@
 
         <!-- MIDDLE PANEL: Chat Window (50%) -->
         <section class="panel center-panel">
-          <div class="chat-container">
-            <section id="transcript" class="transcript" aria-live="polite"></section>
+          <div class="panel-header">
+            <h2>Main</h2>
+          </div>
 
-            <form id="chatForm" class="composer">
-              <label for="prompt" class="sr-only">Message</label>
-              <textarea id="prompt" rows="2" placeholder="Type a message for the Family Assistant..." required></textarea>
-              <p class="composer-hint">Enter to send • Shift+Enter for new line</p>
-              <div class="actions">
-                <button type="button" id="interruptBtn" class="secondary">Interrupt</button>
-                <button type="submit" id="sendBtn" class="primary">Send</button>
+          <div class="panel-tabs center-tabs">
+            <button id="centerTabChat" class="center-tab-btn active" data-tab="chat">Chat</button>
+            <button id="centerTabCalendar" class="center-tab-btn" data-tab="calendar">Calendar</button>
+          </div>
+
+          <div class="chat-container">
+            <section id="chatView" class="center-view chat-view" aria-live="polite">
+              <section id="transcript" class="transcript" aria-live="polite"></section>
+
+              <form id="chatForm" class="composer">
+                <label for="prompt" class="sr-only">Message</label>
+                <textarea id="prompt" rows="2" placeholder="Type a message for the Family Assistant..." required></textarea>
+                <div class="composer-options">
+                  <label class="planner-toggle" for="usePlannerToggle">
+                    <input id="usePlannerToggle" type="checkbox" checked />
+                    <span>Use PLANNER</span>
+                  </label>
+                  <p class="composer-hint">Enter to send • Shift+Enter for new line</p>
+                </div>
+                <div class="actions">
+                  <button type="submit" id="sendBtn" class="primary">Send</button>
+                </div>
+              </form>
+            </section>
+
+            <section id="calendarView" class="center-view calendar-view" style="display: none;">
+              <div class="calendar-toolbar">
+                <p id="calendarStatus" class="calendar-status">Loading events...</p>
+                <button id="refreshCalendarBtn" type="button" class="secondary">Refresh</button>
               </div>
-            </form>
+              <div id="calendarEl" class="calendar-el"></div>
+            </section>
           </div>
         </section>
 
@@ -93,6 +116,7 @@
       </section>
     </main>
 
+    <script src="https://cdn.jsdelivr.net/npm/fullcalendar@6.1.15/index.global.min.js"></script>
     <script type="module" src="./app.js"></script>
   </body>
 </html>

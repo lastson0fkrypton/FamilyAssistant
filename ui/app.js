@@ -4,7 +4,13 @@ const statusEl = document.getElementById('status');
 const formEl = document.getElementById('chatForm');
 const promptEl = document.getElementById('prompt');
 const sendBtn = document.getElementById('sendBtn');
-const interruptBtn = document.getElementById('interruptBtn');
+const usePlannerToggleEl = document.getElementById('usePlannerToggle');
+const chatViewEl = document.getElementById('chatView');
+const calendarViewEl = document.getElementById('calendarView');
+const centerTabButtons = document.querySelectorAll('.center-tab-btn');
+const calendarEl = document.getElementById('calendarEl');
+const calendarStatusEl = document.getElementById('calendarStatus');
+const refreshCalendarBtn = document.getElementById('refreshCalendarBtn');
 
 // Memory elements
 const memoryListEl = document.getElementById('memoryList');
@@ -12,8 +18,6 @@ const memoryNewFormEl = document.getElementById('memoryNewForm');
 
 const memorySaveFormEl = document.getElementById('memorySaveForm');
 const memorySearchFormEl = document.getElementById('memorySearchForm');
-const memoryNamespaceEl = document.getElementById('memoryNamespace');
-const memoryKeyEl = document.getElementById('memoryKey');
 const memoryValueEl = document.getElementById('memoryValue');
 const memoryTagsEl = document.getElementById('memoryTags');
 const memorySearchQueryEl = document.getElementById('memorySearchQuery');
@@ -33,6 +37,91 @@ const sessionId = crypto.randomUUID();
 const history = [];
 const toolsExecutionHistory = [];
 let availableTools = [];
+let calendar = null;
+let memoryRows = [];
+
+function setCalendarStatus(text) {
+  if (calendarStatusEl) {
+    calendarStatusEl.textContent = text;
+  }
+}
+
+async function fetchEvents() {
+  const response = await fetch('/events?limit=200', {
+    headers: { 'content-type': 'application/json' },
+  });
+
+  const body = await response.json();
+  if (!response.ok || !body.ok) {
+    throw new Error(body?.error?.message || 'Failed to load events');
+  }
+
+  return Array.isArray(body.data) ? body.data : [];
+}
+
+async function refreshCalendar() {
+  if (!calendar) return;
+  setCalendarStatus('Loading events...');
+  try {
+    const rows = await fetchEvents();
+    const fcEvents = rows.map((row) => ({
+      id: row.id,
+      title: row.title,
+      start: row.startsAt,
+      end: row.endsAt || undefined,
+      allDay: Boolean(row.allDay),
+      extendedProps: {
+        description: row.description || '',
+        location: row.location || '',
+      },
+    }));
+
+    calendar.removeAllEvents();
+    calendar.addEventSource(fcEvents);
+    setCalendarStatus(`Loaded ${fcEvents.length} event${fcEvents.length === 1 ? '' : 's'}.`);
+  } catch (error) {
+    setCalendarStatus(`Calendar load failed: ${error.message}`);
+  }
+}
+
+function ensureCalendar() {
+  if (calendar || !calendarEl || typeof FullCalendar === 'undefined') return;
+
+  calendar = new FullCalendar.Calendar(calendarEl, {
+    initialView: 'dayGridMonth',
+    headerToolbar: {
+      left: 'prev,next today',
+      center: 'title',
+      right: 'dayGridMonth,timeGridWeek,timeGridDay,listWeek',
+    },
+    eventTimeFormat: {
+      hour: 'numeric',
+      minute: '2-digit',
+      meridiem: 'short',
+    },
+    height: '100%',
+    nowIndicator: true,
+    eventClick: (info) => {
+      const desc = info.event.extendedProps.description ? `\n${info.event.extendedProps.description}` : '';
+      const loc = info.event.extendedProps.location ? `\nLocation: ${info.event.extendedProps.location}` : '';
+      window.alert(`${info.event.title}${desc}${loc}`);
+    },
+  });
+
+  calendar.render();
+}
+
+function switchCenterTab(tab) {
+  centerTabButtons.forEach((btn) => btn.classList.toggle('active', btn.dataset.tab === tab));
+  const showChat = tab === 'chat';
+  chatViewEl.style.display = showChat ? 'flex' : 'none';
+  calendarViewEl.style.display = showChat ? 'none' : 'flex';
+
+  if (!showChat) {
+    ensureCalendar();
+    refreshCalendar();
+  }
+}
 
 sessionIdEl.textContent = `session ${sessionId.slice(0, 8)}...`;
 
@@ -52,13 +141,20 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-async function callOrchestrate(input, isInterrupt = false) {
+async function callOrchestrate(input) {
   const payload = {
     sessionId,
     history,
     input,
-    isInterrupt,
+    usePlanner: Boolean(usePlannerToggleEl?.checked ?? true),
   };
+
+  console.log('[CLIENT] Sending orchestrate request:', {
+    input: payload.input,
+    usePlanner: payload.usePlanner,
+    historyLength: payload.history.length,
+    timestamp: new Date().toISOString(),
+  });
 
   const response = await fetch('/orchestrate', {
     method: 'POST',
@@ -67,6 +163,16 @@ async function callOrchestrate(input, isInterrupt = false) {
   });
 
   const body = await response.json();
+  
+  console.log('[CLIENT] Orchestrate response:', {
+    ok: body.ok,
+    reply: body.data?.reply,
+    toolsExecuted: body.data?.toolsExecuted,
+    done: body.data?.done,
+    error: body.error,
+    rawResponse: body,
+  });
+
   if (!response.ok || !body.ok) {
     const message = body?.error?.message || 'Request failed';
     throw new Error(message);
@@ -214,6 +320,19 @@ panelTabButtons.forEach((btn) => {
   });
 });
 
+centerTabButtons.forEach((btn) => {
+  btn.addEventListener('click', () => {
+    switchCenterTab(btn.dataset.tab || 'chat');
+  });
+});
+
+if (refreshCalendarBtn) {
+  refreshCalendarBtn.addEventListener('click', () => {
+    ensureCalendar();
+    refreshCalendar();
+  });
+}
+
 
 memoryTabButtons.forEach((btn) => {
   btn.addEventListener('click', () => {
@@ -249,30 +368,34 @@ function renderMemoryResults(rows) {
     card.className = 'memory-row';
 
     const tags = Array.isArray(row.tags) ? row.tags.join(', ') : '';
+    const memoryText = row.memory || row.value || '';
     card.innerHTML = `
       <div>
-        <p class="memory-key">${row.namespace}/${row.key}</p>
-        <p class="memory-value">${row.value}</p>
+        <p class="memory-key">memory</p>
+        <p class="memory-value">${memoryText}</p>
         <p class="memory-meta">tags: ${tags || '(none)'} | updated: ${row.updatedAt}</p>
       </div>
-      <button type="button" class="danger" data-namespace="${row.namespace}" data-key="${row.key}">Delete</button>
+      <button type="button" class="danger" data-memory="${memoryText.replace(/"/g, '&quot;')}">Delete</button>
     `;
 
     memoryResultsEl.appendChild(card);
   }
 }
 
-async function refreshMemoryResults() {
-  const namespace = (memoryNamespaceEl.value || 'household').trim() || 'household';
-  const query = (memorySearchQueryEl.value || '').trim();
+function refreshMemoryResults() {
+  const query = (memorySearchQueryEl.value || '').trim().toLowerCase();
+  if (!query) {
+    renderMemoryResults(memoryRows);
+    return;
+  }
 
-  const rows = await executeTool('memory.kv.search', {
-    namespace,
-    query,
-    limit: 20,
+  const filtered = memoryRows.filter((row) => {
+    const text = (row.memory || '').toLowerCase();
+    const tags = Array.isArray(row.tags) ? row.tags.join(' ').toLowerCase() : '';
+    return text.includes(query) || tags.includes(query);
   });
 
-  renderMemoryResults(rows);
+  renderMemoryResults(filtered);
 }
 
 formEl.addEventListener('submit', async (event) => {
@@ -286,18 +409,25 @@ formEl.addEventListener('submit', async (event) => {
 
   setStatus('thinking');
   sendBtn.disabled = true;
-  interruptBtn.disabled = false;
 
   try {
-    const result = await callOrchestrate(text, false);
+    const result = await callOrchestrate(text);
+    console.log('[CLIENT] Processing orchestrate result:', result);
+    
     addMessage('assistant', result.reply || '(no reply)');
     history.push({ role: 'assistant', content: result.reply || '', at: nowIso() });
 
     if (Array.isArray(result.toolsExecuted) && result.toolsExecuted.length > 0) {
+      console.log('[CLIENT] Tools executed:', result.toolsExecuted);
       for (const tool of result.toolsExecuted) {
         markToolAsActive(tool);
         addToolToHistory(tool, true, 0);
         window.setTimeout(() => markToolAsInactive(tool), 900);
+      }
+
+      if (result.toolsExecuted.some((tool) => tool.startsWith('events.'))) {
+        ensureCalendar();
+        refreshCalendar();
       }
     }
   } catch (error) {
@@ -305,7 +435,6 @@ formEl.addEventListener('submit', async (event) => {
   } finally {
     setStatus('idle');
     sendBtn.disabled = false;
-    interruptBtn.disabled = true;
     promptEl.focus();
   }
 });
@@ -319,53 +448,27 @@ promptEl.addEventListener('keydown', (event) => {
   formEl.requestSubmit();
 });
 
-interruptBtn.addEventListener('click', async () => {
-  const text = promptEl.value.trim() || 'User interruption: update current plan with new guidance.';
-  promptEl.value = '';
-
-  addMessage('user', `(interrupt) ${text}`);
-  history.push({ role: 'user', content: text, at: nowIso() });
-
-  setStatus('replanning');
-  sendBtn.disabled = true;
-  interruptBtn.disabled = true;
-
-  try {
-    const result = await callOrchestrate(text, true);
-    addMessage('assistant', result.reply || '(no reply)');
-    history.push({ role: 'assistant', content: result.reply || '', at: nowIso() });
-  } catch (error) {
-    addMessage('system', `error: ${error.message}`);
-  } finally {
-    setStatus('idle');
-    sendBtn.disabled = false;
-    promptEl.focus();
-  }
-});
-
 memorySaveFormEl.addEventListener('submit', async (event) => {
   event.preventDefault();
 
-  const namespace = (memoryNamespaceEl.value || 'household').trim() || 'household';
-  const key = memoryKeyEl.value.trim();
-  const value = memoryValueEl.value.trim();
+  const memory = memoryValueEl.value.trim();
   const tags = (memoryTagsEl.value || '')
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean);
 
-  if (!key || !value) {
-    setMemoryStatus('Memory key and value are required.');
+  if (!memory) {
+    setMemoryStatus('Memory text is required.');
     return;
   }
 
   try {
-    await executeTool('memory.kv.save', { namespace, key, value, tags });
-    memoryKeyEl.value = '';
+    const saved = await executeTool('memory.add', { memory, tags });
+    memoryRows.unshift(saved);
     memoryValueEl.value = '';
     memoryTagsEl.value = '';
-    setMemoryStatus(`Saved memory: ${namespace}/${key}`);
-    await refreshMemoryResults();
+    setMemoryStatus('Memory added.');
+    refreshMemoryResults();
   } catch (error) {
     setMemoryStatus(`Memory save failed: ${error.message}`);
   }
@@ -374,8 +477,8 @@ memorySaveFormEl.addEventListener('submit', async (event) => {
 memorySearchFormEl.addEventListener('submit', async (event) => {
   event.preventDefault();
   try {
-    await refreshMemoryResults();
-    setMemoryStatus('Memory search complete.');
+    refreshMemoryResults();
+    setMemoryStatus('Memory filter applied.');
   } catch (error) {
     setMemoryStatus(`Memory search failed: ${error.message}`);
   }
@@ -385,14 +488,14 @@ memoryResultsEl.addEventListener('click', async (event) => {
   const target = event.target;
   if (!(target instanceof HTMLButtonElement)) return;
 
-  const namespace = target.dataset.namespace;
-  const key = target.dataset.key;
-  if (!namespace || !key) return;
+  const memory = target.dataset.memory;
+  if (!memory) return;
 
   try {
-    await executeTool('memory.kv.delete', { namespace, key });
-    setMemoryStatus(`Deleted memory: ${namespace}/${key}`);
-    await refreshMemoryResults();
+    await executeTool('memory.remove', { memory });
+    memoryRows = memoryRows.filter((row) => row.memory !== memory);
+    setMemoryStatus('Memory removed.');
+    refreshMemoryResults();
   } catch (error) {
     setMemoryStatus(`Memory delete failed: ${error.message}`);
   }
@@ -400,12 +503,12 @@ memoryResultsEl.addEventListener('click', async (event) => {
 
 async function initialize() {
   addMessage('system', 'Welcome to the Family Assistant, How can I help you today?');
-  interruptBtn.disabled = true;
   promptEl.focus();
 
   await fetchAvailableTools();
   renderToolsHistory();
-  await refreshMemoryResults();
+  renderMemoryResults(memoryRows);
+  switchCenterTab('chat');
 }
 
 initialize();

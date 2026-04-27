@@ -6,9 +6,6 @@ import type {
   CreateEvent,
   UpdateEvent,
   EventListQuery,
-  Schedule,
-  CreateSchedule,
-  UpdateSchedule,
 } from '@familyassistant/schemas';
 import type { StructuredMemoryAdapter } from './adapter.js';
 
@@ -32,17 +29,5 @@ export class SqliteStructuredMemoryAdapter implements StructuredMemoryAdapter {
   }
   async deleteEvent(_id: string, _correlationId: string, _actorId?: string): Promise<boolean> {
     return notImplemented('deleteEvent');
-  }
-
-  async listSchedules(): Promise<Schedule[]> { return notImplemented('listSchedules'); }
-  async createSchedule(_input: CreateSchedule, _correlationId: string): Promise<Schedule> {
-    return notImplemented('createSchedule');
-  }
-  async getSchedule(_id: string): Promise<Schedule | null> { return notImplemented('getSchedule'); }
-  async updateSchedule(_id: string, _patch: UpdateSchedule, _correlationId: string, _actorId?: string): Promise<Schedule | null> {
-    return notImplemented('updateSchedule');
-  }
-  async deleteSchedule(_id: string, _correlationId: string, _actorId?: string): Promise<boolean> {
-    return notImplemented('deleteSchedule');
   }
 }

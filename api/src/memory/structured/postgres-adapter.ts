@@ -7,9 +7,6 @@ import type {
   CreateEvent,
   UpdateEvent,
   EventListQuery,
-  Schedule,
-  CreateSchedule,
-  UpdateSchedule,
 } from '@familyassistant/schemas';
 import { pool } from '../../db.js';
 import { audit } from '../../db/audit.js';
@@ -33,20 +30,6 @@ function rowToEvent(row: Record<string, unknown>): Event {
     endsAt: row['ends_at'] ? (row['ends_at'] as Date).toISOString() : undefined,
     allDay: row['all_day'] as boolean,
     location: (row['location'] as string | null) ?? undefined,
-    createdBy: row['created_by'] as string,
-    createdAt: (row['created_at'] as Date).toISOString(),
-    updatedAt: (row['updated_at'] as Date).toISOString(),
-  };
-}
-
-function rowToSchedule(row: Record<string, unknown>): Schedule {
-  return {
-    id: row['id'] as string,
-    title: row['title'] as string,
-    description: (row['description'] as string | null) ?? undefined,
-    startsAt: (row['starts_at'] as Date).toISOString(),
-    recurrence: (row['recurrence'] as Schedule['recurrence'] | null) ?? undefined,
-    assignedTo: (row['assigned_to'] as string | null) ?? undefined,
     createdBy: row['created_by'] as string,
     createdAt: (row['created_at'] as Date).toISOString(),
     updatedAt: (row['updated_at'] as Date).toISOString(),
@@ -229,116 +212,4 @@ export class PostgresStructuredMemoryAdapter implements StructuredMemoryAdapter 
     return deleted;
   }
 
-  async listSchedules(): Promise<Schedule[]> {
-    const { rows } = await pool.query('SELECT * FROM schedules ORDER BY starts_at ASC');
-    return rows.map(rowToSchedule);
-  }
-
-  async createSchedule(input: CreateSchedule, correlationId: string): Promise<Schedule> {
-    const { rows } = await pool.query(
-      `INSERT INTO schedules
-         (id, title, description, starts_at, recurrence, assigned_to, created_by)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       RETURNING *`,
-      [
-        uuidv4(),
-        input.title,
-        input.description ?? null,
-        input.startsAt,
-        input.recurrence ? JSON.stringify(input.recurrence) : null,
-        input.assignedTo ?? null,
-        input.createdBy,
-      ],
-    );
-
-    const schedule = rowToSchedule(rows[0]);
-    await audit({
-      correlationId,
-      actorId: input.createdBy,
-      action: 'create',
-      resourceType: 'schedule',
-      resourceId: schedule.id,
-      payload: input,
-    });
-
-    return schedule;
-  }
-
-  async getSchedule(id: string): Promise<Schedule | null> {
-    const { rows } = await pool.query('SELECT * FROM schedules WHERE id = $1', [id]);
-    return rows.length > 0 ? rowToSchedule(rows[0]) : null;
-  }
-
-  async updateSchedule(
-    id: string,
-    patch: UpdateSchedule,
-    correlationId: string,
-    actorId?: string,
-  ): Promise<Schedule | null> {
-    const fields: string[] = [];
-    const params: unknown[] = [];
-
-    if (patch.title !== undefined) {
-      params.push(patch.title);
-      fields.push(`title = $${params.length}`);
-    }
-    if (patch.description !== undefined) {
-      params.push(patch.description);
-      fields.push(`description = $${params.length}`);
-    }
-    if (patch.startsAt !== undefined) {
-      params.push(patch.startsAt);
-      fields.push(`starts_at = $${params.length}`);
-    }
-    if (patch.recurrence !== undefined) {
-      params.push(JSON.stringify(patch.recurrence));
-      fields.push(`recurrence = $${params.length}`);
-    }
-    if (patch.assignedTo !== undefined) {
-      params.push(patch.assignedTo);
-      fields.push(`assigned_to = $${params.length}`);
-    }
-
-    if (fields.length === 0) return this.getSchedule(id);
-
-    params.push(new Date().toISOString());
-    fields.push(`updated_at = $${params.length}`);
-    params.push(id);
-
-    const { rows } = await pool.query(
-      `UPDATE schedules SET ${fields.join(', ')} WHERE id = $${params.length} RETURNING *`,
-      params,
-    );
-
-    if (rows.length === 0) return null;
-
-    const schedule = rowToSchedule(rows[0]);
-    await audit({
-      correlationId,
-      actorId,
-      action: 'update',
-      resourceType: 'schedule',
-      resourceId: id,
-      payload: patch,
-    });
-
-    return schedule;
-  }
-
-  async deleteSchedule(id: string, correlationId: string, actorId?: string): Promise<boolean> {
-    const { rowCount } = await pool.query('DELETE FROM schedules WHERE id = $1', [id]);
-    const deleted = (rowCount ?? 0) > 0;
-
-    if (deleted) {
-      await audit({
-        correlationId,
-        actorId,
-        action: 'delete',
-        resourceType: 'schedule',
-        resourceId: id,
-      });
-    }
-
-    return deleted;
-  }
 }

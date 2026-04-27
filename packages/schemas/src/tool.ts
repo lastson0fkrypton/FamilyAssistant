@@ -41,16 +41,7 @@ export const ToolCallResultSchema = z.discriminatedUnion('ok', [
   ToolCallErrorSchema,
 ]);
 
-// ── Cancellation signal ────────────────────────────────────────────────────
-// Sent when the user interrupts mid-processing.
-
-export const CancelToolCallSchema = z.object({
-  correlationId: z.string().uuid(),
-  reason: z.enum(['user_interrupted', 'timeout', 'error']),
-});
-
 export type ToolCallRequest = z.infer<typeof ToolCallRequestSchema>;
 export type ToolCallSuccess = z.infer<typeof ToolCallSuccessSchema>;
 export type ToolCallError = z.infer<typeof ToolCallErrorSchema>;
 export type ToolCallResult = z.infer<typeof ToolCallResultSchema>;
-export type CancelToolCall = z.infer<typeof CancelToolCallSchema>;

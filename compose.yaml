@@ -42,16 +42,6 @@ services:
     networks:
       - familyassistant_net
 
-  qdrant:
-    image: docker.io/qdrant/qdrant:latest
-    container_name: familyassistant-qdrant
-    ports:
-      - "${QDRANT_PORT}:6333"
-    volumes:
-      - qdrant_data:/qdrant/storage
-    networks:
-      - familyassistant_net
-
   api:
     image: docker.io/node:20-alpine
     container_name: familyassistant-api
@@ -66,7 +56,6 @@ services:
       PORT: ${API_PORT}
       DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       OLLAMA_BASE_URL: http://ollama:11434
-      QDRANT_URL: http://qdrant:6333
     ports:
       - "${API_PORT}:3000"
     depends_on:
@@ -74,8 +63,6 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
-      qdrant:
-        condition: service_started
     volumes:
       - ./:/app
     networks:
@@ -113,5 +100,3 @@ volumes:
     name: familyassistant-postgres-data
   ollama_data:
     name: familyassistant-ollama-data
-  qdrant_data:
-    name: familyassistant-qdrant-data

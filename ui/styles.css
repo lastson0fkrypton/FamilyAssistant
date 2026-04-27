@@ -126,6 +126,29 @@ h1 {
   background: rgba(255, 255, 255, 0.01);
 }
 
+.center-tabs {
+  border-bottom: 1px solid var(--border);
+  border-top: none;
+}
+
+.center-tab-btn {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+
+.center-tab-btn.active {
+  background: var(--accent);
+  color: #041411;
+  border-color: transparent;
+}
+
 /* Memory panel */
 .memory-grid {
   padding: 0.7rem;
@@ -224,6 +247,73 @@ textarea {
   height: 100%;
 }
 
+.center-view {
+  min-height: 0;
+  height: 100%;
+}
+
+.chat-view {
+  display: flex;
+  flex-direction: column;
+}
+
+.calendar-view {
+  display: flex;
+  flex-direction: column;
+  padding: 0.65rem;
+  gap: 0.55rem;
+}
+
+.calendar-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.calendar-status {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.8rem;
+}
+
+.calendar-el {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 0.35rem;
+  background: rgba(255, 255, 255, 0.02);
+  min-height: 0;
+  height: 100%;
+}
+
+.fc {
+  color: var(--ink);
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1rem;
+}
+
+.fc .fc-button {
+  border: 1px solid var(--border);
+  background: rgba(26, 194, 161, 0.22);
+  color: var(--ink);
+  text-transform: capitalize;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background: var(--accent);
+  border-color: transparent;
+  color: #041411;
+}
+
+.fc .fc-daygrid-event,
+.fc .fc-timegrid-event {
+  border: none;
+  background: linear-gradient(180deg, rgba(26, 194, 161, 0.9), rgba(15, 132, 111, 0.9));
+}
+
 .transcript {
   padding: 0.9rem;
   overflow-y: auto;
@@ -269,6 +359,25 @@ textarea {
 .composer textarea {
   resize: vertical;
   min-height: 3.3rem;
+}
+
+.composer-options {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.planner-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+}
+
+.planner-toggle input {
+  accent-color: var(--accent);
 }
 
 .composer-hint {

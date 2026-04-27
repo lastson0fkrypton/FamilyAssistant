@@ -10,7 +10,6 @@ import { getOllamaClient } from '../ollama-client.js';
 import { executeToolCall, getToolManifest } from '../tools/registry.js';
 import { logger } from '../logger.js';
 import * as MemoryKvService from '../services/memory-kv.js';
-import * as SemanticMemoryService from '../services/semantic-memory.js';
 
 // ── LLM planner decision schema ────────────────────────────────────────────
 
@@ -28,14 +27,6 @@ const LlmDecisionSchema = z.discriminatedUnion('kind', [
 ]);
 
 type LlmDecision = z.infer<typeof LlmDecisionSchema>;
-
-// ── Cancellation ───────────────────────────────────────────────────────────
-
-const canceledCorrelationIds = new Set<string>();
-
-export function cancelCorrelationId(correlationId: string): void {
-  canceledCorrelationIds.add(correlationId);
-}
 
 // ── Utility helpers ────────────────────────────────────────────────────────
 
@@ -85,7 +76,7 @@ function parsePlannerDecisionFromRaw(rawText: string): LlmDecision | null {
 function sanitizeAssistantReply(reply: string): string {
   return reply
     .trim()
-    .replace(/`?(?:memory|events|schedules)\.[a-z.]+`?/gi, 'household records')
+    .replace(/`?(?:memory|events)\.[a-z.]+`?/gi, 'household records')
     .replace(/\s{2,}/g, ' ');
 }
 
@@ -107,38 +98,25 @@ function buildReplyFallbackFromRaw(rawText: string): string {
 // ── Memory recall ──────────────────────────────────────────────────────────
 
 async function recallMemory(query: string, sessionId: string): Promise<string> {
-  if (query.trim().length <= 5) return '(none)';
+  if (query.trim().length <= 1) return '(none)';
 
   try {
-    const [kv, semantic] = await Promise.all([
-      MemoryKvService.searchMemoryKv({ namespace: 'household', query, limit: 8 }),
-      SemanticMemoryService.searchSemanticMemory({
-        query,
-        limit: 5,
-        sessionId,
-        kinds: ['preference', 'context_note', 'conversation_summary'],
-      }),
-    ]);
+    const tokens = MemoryKvService.tokenizeText(query);
+    const kv = await MemoryKvService.findTopMemoriesByTagTokens(tokens, 5);
 
     const lines: string[] = [];
+    lines.push(`Input tokens: ${tokens.length > 0 ? tokens.join(', ') : '(none)'}`);
 
     if (kv.length > 0) {
-      lines.push('Household facts (key-value memory):');
+      lines.push('Top matching memories by matched tags:');
       for (const item of kv) {
-        lines.push(`  ${item.key}: ${item.value}`);
-      }
-    }
-
-    if (semantic.length > 0) {
-      lines.push('Related conversation notes:');
-      for (const row of semantic) {
-        lines.push(`  (${row.entry.kind}) ${row.entry.content}`);
+        lines.push(`  (${item.matchedTagCount} tags) ${item.memory}`);
       }
     }
 
     return lines.length > 0 ? lines.join('\n') : '(none)';
   } catch (err) {
-    logger.warn({ err }, 'Memory recall failed; continuing without memory context');
+    logger.warn({ err, sessionId }, 'Memory recall failed; continuing without memory context');
     return '(none)';
   }
 }
@@ -163,10 +141,6 @@ function buildPlannerPrompt(
     .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
     .join('\n');
 
-  const interruptNote = input.isInterrupt
-    ? 'USER INTERRUPTED: Discard any prior plan. Replan based on the updated input below.'
-    : '';
-
   const toolManifest = buildToolManifestText();
 
   return [
@@ -182,8 +156,14 @@ function buildPlannerPrompt(
     'Rules:',
     '- Return EXACTLY one JSON object, nothing else.',
     '- Do NOT output markdown code fences.',
-    '- When the user states a fact or preference about someone, ALWAYS use memory.kv.save first.',
-    '- When asked about events/schedules/tasks, ALWAYS call the list/search tool — never guess.',
+    '- Decide between tool_call vs response from user intent and available tools; do not stall in planning language.',
+    '- Use memory context provided in this prompt before deciding to call a tool.',
+    '- When the user states a fact or preference, use memory.add to save it.',
+    '- When the user asks to forget or remove a memory, use memory.remove.',
+    '- When asked about events, call events.list or events.get as needed.',
+    '- Do not ask for confirmation to list events when the user already requested it.',
+    '- If the previous assistant turn offered to check events and the user replies with "yes/please/go ahead", your next output MUST be a tool_call to the relevant event tool.',
+    '- Never output planning text like "Let me check" unless a tool_call has already been emitted in this turn.',
     '- Use recalled memory as context to enrich your response, but do not invent facts that are not there.',
     '- Never expose tool names, technical identifiers, or internal details in user-facing replies.',
     '- If you do not have the answer and no tool can provide it, say you do not know and ask.',
@@ -197,7 +177,6 @@ function buildPlannerPrompt(
     '=== CONVERSATION HISTORY ===',
     history || '(none)',
     '',
-    interruptNote,
     `USER: ${input.input}`,
     '',
     '=== SCRATCHPAD (tool results from earlier steps this turn) ===',
@@ -205,6 +184,47 @@ function buildPlannerPrompt(
   ]
     .filter((line) => line !== undefined)
     .join('\n');
+}
+
+function buildDirectPrompt(input: OrchestrationRequest, scratchpad: string, recalledMemory: string): string {
+  const history = input.history
+    .slice(-8)
+    .map((turn) => `${turn.role.toUpperCase()}: ${turn.content}`)
+    .join('\n');
+
+  const toolManifest = buildToolManifestText();
+
+  return [
+    config.ORCHESTRATION_SYSTEM_PROMPT,
+    '',
+    'Return EXACTLY one JSON object and nothing else.',
+    'Allowed outputs:',
+    '{"kind":"tool_call","tool":"<name>","args":{...}}',
+    '{"kind":"response","reply":"...","done":true}',
+    '',
+    'Guidance:',
+    '- Memory context below is preloaded from tokenized user input; use it before deciding on tools.',
+    '- Use tool_call for event and memory actions that require writes or event retrieval.',
+    '- Use memory.add for saving facts/preferences and memory.remove for deletion requests.',
+    '- After retrieving tool results (see scratchpad), synthesize a helpful response instead of re-calling the same tool.',
+    '- If responding conversationally, keep it concise and helpful.',
+    '- Do not expose internal tool identifiers in user-facing reply text.',
+    '- Do not fabricate facts not present in provided memory context or tool results.',
+    '',
+    'Available tools:',
+    toolManifest,
+    '',
+    'Relevant memory:',
+    recalledMemory,
+    '',
+    'Conversation history:',
+    history || '(none)',
+    '',
+    'Tool execution results from earlier steps this turn:',
+    scratchpad || '(none)',
+    '',
+    `USER: ${input.input}`,
+  ].join('\n');
 }
 
 // ── Planner call ───────────────────────────────────────────────────────────
@@ -216,11 +236,37 @@ async function askPlanner(
 ): Promise<LlmDecision> {
   const client = getOllamaClient();
   const recalledMemory = await recallMemory(memoryQuery, input.sessionId);
-  const prompt = buildPlannerPrompt(input, scratchpad, recalledMemory);
+  const prompt = input.usePlanner
+    ? buildPlannerPrompt(input, scratchpad, recalledMemory)
+    : buildDirectPrompt(input, scratchpad, recalledMemory);
+  
+  console.log('[SERVER-PLANNER] Generated prompt:', {
+    mode: input.usePlanner ? 'PLANNER' : 'DIRECT',
+    userInput: input.input,
+    promptLength: prompt.length,
+    promptPreview: prompt.slice(0, 300) + '...',
+    recalledMemoryLength: recalledMemory.length,
+    scratchpadLength: scratchpad.length,
+  });
+  
   const response = await client.generateJson(prompt);
   const rawText = response.response ?? '';
 
+  console.log('[SERVER-PLANNER] LLM raw response:', {
+    responseLength: rawText.length,
+    responsePreview: rawText.slice(0, 400),
+    fullResponse: rawText,
+  });
+
   const decision = parsePlannerDecisionFromRaw(rawText);
+  
+  console.log('[SERVER-PLANNER] Parsed decision:', {
+    kind: decision?.kind,
+    tool: decision?.kind === 'tool_call' ? decision.tool : undefined,
+    reply: decision?.kind === 'response' ? decision.reply : undefined,
+    parseSuccess: !!decision,
+  });
+  
   if (decision) {
     return decision;
   }
@@ -248,13 +294,33 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
   const toolsExecuted: string[] = [];
   let scratchpad = '';
 
+  console.log('[SERVER-ORCHESTRATE] Starting orchestration:', {
+    sessionId: parsed.sessionId,
+    userInput: parsed.input,
+    usePlanner: parsed.usePlanner,
+    historyLength: parsed.history.length,
+    timestamp: new Date().toISOString(),
+  });
+
   // Use the full input as the initial memory query; subsequent steps enrich scratchpad instead.
   let memoryQuery = parsed.input;
 
   for (let step = 0; step < maxSteps; step += 1) {
+    console.log(`[SERVER-ORCHESTRATE-STEP] Step ${step + 1}/${maxSteps}`);
+    
     const decision = await askPlanner(parsed, scratchpad, memoryQuery);
 
+    console.log(`[SERVER-ORCHESTRATE-STEP] Step ${step + 1} decision:`, {
+      kind: decision.kind,
+      tool: decision.kind === 'tool_call' ? decision.tool : undefined,
+    });
+
     if (decision.kind === 'response') {
+      console.log('[SERVER-ORCHESTRATE] Orchestration complete with response:', {
+        reply: decision.reply.slice(0, 100),
+        toolsExecuted,
+        done: decision.done ?? true,
+      });
       return {
         sessionId: parsed.sessionId,
         reply: sanitizeAssistantReply(decision.reply),
@@ -266,15 +332,12 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
     // tool_call branch
     const correlationId = uuidv4();
 
-    if (canceledCorrelationIds.has(correlationId)) {
-      canceledCorrelationIds.delete(correlationId);
-      return {
-        sessionId: parsed.sessionId,
-        reply: 'Processing was canceled. Please go ahead with your updated request.',
-        toolsExecuted,
-        done: false,
-      };
-    }
+    console.log(`[SERVER-ORCHESTRATE-STEP] Executing tool:`, {
+      step: step + 1,
+      tool: decision.tool,
+      args: decision.args,
+      correlationId,
+    });
 
     const toolResult = await executeToolCall({
       correlationId,
@@ -288,12 +351,20 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
       ? JSON.stringify(toolResult.result)
       : `ERROR ${toolResult.error.code}: ${toolResult.error.message}`;
 
+    console.log(`[SERVER-ORCHESTRATE-STEP] Tool result:`, {
+      step: step + 1,
+      tool: decision.tool,
+      success: toolResult.ok,
+      resultPreview: resultSummary.slice(0, 200),
+    });
+
     scratchpad += `\n[step ${step + 1}] ${decision.tool}(${JSON.stringify(decision.args)}) → ${resultSummary}`;
 
     // After a tool result, refine the memory query to anything relevant in the result.
     memoryQuery = `${parsed.input} ${resultSummary}`.slice(0, 400);
 
     if (!toolResult.ok) {
+      console.log('[SERVER-ORCHESTRATE] Tool failed, returning error response');
       return {
         sessionId: parsed.sessionId,
         reply: 'I could not complete that action right now. I can still help if you want a direct answer or want to try the action again with a bit more detail.',
@@ -303,6 +374,7 @@ export async function orchestrate(rawRequest: unknown): Promise<OrchestrationRes
     }
   }
 
+  console.log('[SERVER-ORCHESTRATE] Max steps reached without completing');
   logger.warn({ sessionId: parsed.sessionId }, 'Orchestration reached max steps without completing');
   return {
     sessionId: parsed.sessionId,

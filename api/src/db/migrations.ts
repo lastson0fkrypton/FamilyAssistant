@@ -79,25 +79,7 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
     `,
   },
   {
-    name: '003_create_schedules',
-    sql: `
-      CREATE TABLE IF NOT EXISTS schedules (
-        id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        title         TEXT NOT NULL CHECK (char_length(title) BETWEEN 1 AND 200),
-        description   TEXT CHECK (char_length(description) <= 2000),
-        starts_at     TIMESTAMPTZ NOT NULL,
-        recurrence    JSONB,
-        assigned_to   UUID REFERENCES users(id),
-        created_by    UUID NOT NULL REFERENCES users(id),
-        created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at    TIMESTAMPTZ NOT NULL DEFAULT now()
-      );
-      CREATE INDEX IF NOT EXISTS schedules_starts_at_idx ON schedules(starts_at);
-      CREATE INDEX IF NOT EXISTS schedules_assigned_to_idx ON schedules(assigned_to);
-    `,
-  },
-  {
-    name: '004_create_audit_log',
+    name: '003_create_audit_log',
     sql: `
       CREATE TABLE IF NOT EXISTS audit_log (
         id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -114,21 +96,17 @@ const MIGRATIONS: Array<{ name: string; sql: string }> = [
     `,
   },
   {
-    name: '005_create_memory_kv',
+    name: '004_create_memories',
     sql: `
-      CREATE TABLE IF NOT EXISTS memory_kv (
+      CREATE TABLE IF NOT EXISTS memories (
         id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        namespace   TEXT NOT NULL CHECK (char_length(namespace) BETWEEN 1 AND 80),
-        key         TEXT NOT NULL CHECK (char_length(key) BETWEEN 1 AND 160),
-        value       TEXT NOT NULL CHECK (char_length(value) <= 12000),
+        memory      TEXT NOT NULL CHECK (char_length(memory) <= 12000),
         tags        JSONB NOT NULL DEFAULT '[]'::jsonb,
         created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-        UNIQUE(namespace, key)
+        updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
       );
 
-      CREATE INDEX IF NOT EXISTS memory_kv_namespace_idx ON memory_kv(namespace);
-      CREATE INDEX IF NOT EXISTS memory_kv_updated_at_idx ON memory_kv(updated_at DESC);
+      CREATE INDEX IF NOT EXISTS memories_updated_at_idx ON memories(updated_at DESC);
     `,
   },
 ];

@@ -22,8 +22,8 @@ export const OrchestrationRequestSchema = z.object({
   history: z.array(ConversationTurnSchema),
   /** The new user turn to process. */
   input: z.string().min(1).max(8000),
-  /** If true, signals the LLM should abort current work and replan. */
-  isInterrupt: z.boolean().default(false),
+  /** Toggle planner mode. When false, use the lightweight prompt path. */
+  usePlanner: z.boolean().default(true),
 });
 
 // ── Orchestration response ─────────────────────────────────────────────────

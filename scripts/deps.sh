@@ -13,14 +13,14 @@ Usage: ./scripts/deps.sh <command>
 Commands:
   init-env    Create .env from .env.example if missing
   configure   Update dependency env vars (passes args to configure-deps.sh)
-  up          Start Ollama, PostgreSQL, and Qdrant containers
+  up          Start Ollama and PostgreSQL containers
   model       Ensure configured Ollama model is pulled locally
   warm        Warm configured Ollama model (pulls first if missing)
-  down        Stop Ollama, PostgreSQL, and Qdrant containers
-  restart     Restart Ollama, PostgreSQL, and Qdrant containers
-  status      Show status of Ollama, PostgreSQL, and Qdrant containers
-  logs        Show logs for Ollama, PostgreSQL, and Qdrant containers
-  wait        Wait until Ollama, PostgreSQL, and Qdrant are reachable
+  down        Stop Ollama and PostgreSQL containers
+  restart     Restart Ollama and PostgreSQL containers
+  status      Show status of Ollama and PostgreSQL containers
+  logs        Show logs for Ollama and PostgreSQL containers
+  wait        Wait until Ollama and PostgreSQL are reachable
 
 Examples:
   ./scripts/deps.sh init-env
@@ -85,24 +85,6 @@ wait_for_ollama() {
   return 1
 }
 
-wait_for_qdrant() {
-  local port="$1"
-  local timeout_s="$2"
-  local elapsed=0
-
-  while (( elapsed < timeout_s )); do
-    if curl -fsS "http://127.0.0.1:${port}/collections" >/dev/null 2>&1; then
-      echo "Qdrant API is ready on 127.0.0.1:${port}"
-      return 0
-    fi
-    sleep 1
-    elapsed=$((elapsed + 1))
-  done
-
-  echo "Timed out waiting for Qdrant API on 127.0.0.1:${port}" >&2
-  return 1
-}
-
 if [[ $# -lt 1 ]]; then
   usage
   exit 1
@@ -121,7 +103,7 @@ case "${COMMAND}" in
     ;;
   up)
     ensure_env
-    "${COMPOSE_SCRIPT}" up postgres ollama qdrant
+    "${COMPOSE_SCRIPT}" up postgres ollama
     ;;
   model)
     ensure_env
@@ -133,12 +115,12 @@ case "${COMMAND}" in
     ;;
   down)
     ensure_env
-    "${COMPOSE_SCRIPT}" stop postgres ollama qdrant
+    "${COMPOSE_SCRIPT}" stop postgres ollama
     ;;
   restart)
     ensure_env
-    "${COMPOSE_SCRIPT}" stop postgres ollama qdrant
-    "${COMPOSE_SCRIPT}" start postgres ollama qdrant
+    "${COMPOSE_SCRIPT}" stop postgres ollama
+    "${COMPOSE_SCRIPT}" start postgres ollama
     ;;
   status)
     ensure_env
@@ -146,7 +128,7 @@ case "${COMMAND}" in
     ;;
   logs)
     ensure_env
-    "${COMPOSE_SCRIPT}" logs postgres ollama qdrant
+    "${COMPOSE_SCRIPT}" logs postgres ollama
     ;;
   wait)
     ensure_env
@@ -154,11 +136,8 @@ case "${COMMAND}" in
     POSTGRES_PORT="${POSTGRES_PORT:-5432}"
     OLLAMA_PORT="$(read_env_value OLLAMA_PORT || true)"
     OLLAMA_PORT="${OLLAMA_PORT:-11434}"
-    QDRANT_PORT="$(read_env_value QDRANT_PORT || true)"
-    QDRANT_PORT="${QDRANT_PORT:-6333}"
     wait_for_port "127.0.0.1" "${POSTGRES_PORT}" "PostgreSQL" 120
     wait_for_ollama "${OLLAMA_PORT}" 180
-    wait_for_qdrant "${QDRANT_PORT}" 120
     ;;
   -h|--help)
     usage
